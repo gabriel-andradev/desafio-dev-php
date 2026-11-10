@@ -1,58 +1,87 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# Carteira Digital Financeira — Grupo Adriano Cobuccio (PHP & Laravel)
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+Aplicação Full Stack de carteira digital desenvolvida em **PHP** com **Laravel**, projetada para operações de depósito, transferência entre usuários (P2P) por CPF ou e-mail, tratamento de saldo negativo e reversão auditável de transações.
 
-## About Laravel
+---
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+## 1. Tecnologias Utilizadas
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+* **PHP 8.3 / 8.4** com `declare(strict_types=1);` em todos os arquivos.
+* **Laravel** (Eloquent ORM, Form Requests, Sessão Criptografada, Proteção CSRF).
+* **MySQL 8.0** (Transações ACID e bloqueio pessimista com `SELECT ... FOR UPDATE`).
+* **Blade + Tailwind CSS + Alpine.js** (Interface reativa com máscaras monetárias e de CPF em tempo real).
+* **PHPUnit** (Suíte de testes unitários de domínio e testes de integração HTTP + Banco).
+* **Laravel Pint & PHPStan (Nível 8)** (Padronização PSR-12 e análise estática de tipos).
+* **Docker & Docker Compose** (Containers isolados para PHP-FPM, Nginx e MySQL).
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+---
 
-## Learning Laravel
+## 2. Decisões Arquiteturais e Engenharia Financeira
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
+### Precisão Monetária em Centavos (`BIGINT` + Value Object `Money`)
+* Valores monetários são armazenados e processados exclusivamente como inteiros em **centavos** (`BIGINT`), evitando erros de arredondamento de ponto flutuante (IEEE 754).
+* O Value Object imutável `App\Domain\Wallet\Money` realiza a conversão de strings no formato brasileiro (`R$ 1.450,75`) para centavos inteiros usando apenas aritmética inteira.
 
-In addition, [Laracasts](https://laracasts.com) contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+### Controle de Concorrência e Prevenção de Deadlock
+* Todas as mutações de saldo rodam dentro de `DB::transaction()` com bloqueio pessimista (`lockForUpdate()`).
+* Em transferências entre duas carteiras, os registros são bloqueados em ordem crescente de ID (`orderBy('id')->lockForUpdate()`), eliminando o risco de *deadlock* quando dois usuários transferem um para o outro simultaneamente.
 
-You can also watch bite-sized lessons with real-world projects on [Laravel Learn](https://laravel.com/learn), where you will be guided through building a Laravel application from scratch while learning PHP fundamentals.
+### Regra de Saldo Negativo e Amortização no Depósito
+* Antes de qualquer transferência, a regra de domínio (`TransactionDomainRules::assertTransferAllowed`) valida se o remetente possui saldo suficiente.
+* Caso a carteira esteja com saldo negativo (por exemplo, após a reversão de uma operação cujo valor já havia sido transferido), um novo depósito abate automaticamente o saldo devedor e acrescenta o excedente ao saldo disponível.
 
-## Agentic Development
+### Ledger Imutável e Reversão Idempotente
+* Nenhuma transação é removida do banco (`DELETE`). O estorno marca a operação original como `REVERSED`, registra a data/motivo e insere um contra-lançamento do tipo `REVERSAL` vinculado por `original_transaction_id` (protegido por constraint `UNIQUE` no banco para impedir duplo estorno).
 
-Laravel's predictable structure and conventions make it ideal for AI coding agents like Claude Code, Cursor, and GitHub Copilot. Install [Laravel Boost](https://laravel.com/docs/ai) to supercharge your AI workflow:
+---
 
+## 3. Como Executar o Projeto
+
+### Opção A: Via Docker Compose
 ```bash
-composer require laravel/boost --dev
+cp .env.example .env
+docker compose up -d --build
+docker compose exec app composer install
+docker compose exec app php artisan key:generate
+docker compose exec app php artisan migrate --seed
+```
+Acesse no navegador: `http://localhost:8000`
 
-php artisan boost:install
+### Opção B: Execução Local (PHP + SQLite/MySQL)
+```bash
+cp .env.example .env
+composer install
+php artisan key:generate
+php artisan migrate --seed
+php artisan serve
+```
+Acesse no navegador: `http://localhost:8000`
+
+---
+
+## 4. Contas de Demonstração (Seeds)
+
+O comando `php artisan migrate --seed` cria três contas prontas para avaliação:
+
+| Usuário | E-mail | CPF | Senha | Saldo Inicial | Cenário de Teste |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **Gabriel Cobuccio** | `gabriel@cobuccio.com` | `111.222.333-44` | `password123` | **R$ 1.450,00** | Conta com saldo positivo e histórico de movimentações |
+| **Bruno Costa** | `bruno@cobuccio.com` | `555.666.777-88` | `password123` | **R$ 800,00** | Conta destinatária/remetente para transferências P2P |
+| **Mariana Souza** | `mariana@cobuccio.com` | `999.888.777-66` | `password123` | **-R$ 250,00** | Conta com **saldo negativo** para demonstrar o abatimento automático no depósito |
+
+---
+
+## 5. Testes Automatizados e Qualidade
+
+Para executar a suíte completa de testes unitários (Domínio/TDD) e de integração (Feature):
+```bash
+php artisan test
 ```
 
-Boost provides your agent 15+ tools and skills that help agents build Laravel applications while following best practices.
+Para verificar a padronização de código (PSR-12):
+```bash
+php ./vendor/bin/pint --test
+```
 
-## Contributing
-
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
-
-## Code of Conduct
-
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
-
-## Security Vulnerabilities
-
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
-
-## License
-
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+Endpoint de Healthcheck (conectividade ativa com o banco de dados):
+* `GET /api/health`
