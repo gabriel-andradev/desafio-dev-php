@@ -6,18 +6,24 @@ namespace App\Domain\Wallet;
 
 use App\Domain\Wallet\Exceptions\DomainRuleException;
 
+/**
+ * Encapsulates pure domain rules and invariants for wallet deposits, transfers, and reversals.
+ */
 final class TransactionDomainRules
 {
     /**
-     * Calcula o novo saldo após um depósito.
-     * Se a conta estiver negativa, a soma algébrica em centavos abate a dívida
-     * automaticamente e mantém o excedente como saldo positivo.
+     * Calculates the new balance in cents after a deposit, automatically offsetting any negative balance.
      */
     public static function calculateBalanceAfterDeposit(int $currentBalanceCents, Money $depositAmount): int
     {
         return $currentBalanceCents + $depositAmount->cents();
     }
 
+    /**
+     * Validates that a peer-to-peer transfer satisfies balance and participant invariants.
+     *
+     * @throws DomainRuleException
+     */
     public static function assertTransferAllowed(
         int $senderWalletId,
         int $receiverWalletId,
@@ -33,6 +39,11 @@ final class TransactionDomainRules
         }
     }
 
+    /**
+     * Validates that a transaction is eligible for reversal by the requesting participant.
+     *
+     * @throws DomainRuleException
+     */
     public static function assertReversalAllowed(
         string $type,
         string $status,
@@ -56,4 +67,3 @@ final class TransactionDomainRules
         }
     }
 }
-

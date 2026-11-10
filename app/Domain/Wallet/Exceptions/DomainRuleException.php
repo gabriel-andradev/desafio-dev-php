@@ -6,6 +6,9 @@ namespace App\Domain\Wallet\Exceptions;
 
 use DomainException;
 
+/**
+ * Thrown when a financial business rule or invariant is violated.
+ */
 class DomainRuleException extends DomainException
 {
     public function __construct(string $message, int $code = 422)
@@ -13,4 +16,3 @@ class DomainRuleException extends DomainException
         parent::__construct($message, $code);
     }
 }
-

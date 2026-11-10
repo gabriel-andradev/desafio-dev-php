@@ -11,6 +11,9 @@ use App\Domain\Wallet\TransactionStatus;
 use App\Domain\Wallet\TransactionType;
 use PHPUnit\Framework\TestCase;
 
+/**
+ * Unit tests for Money value object and pure wallet domain rules.
+ */
 class WalletDomainTest extends TestCase
 {
     public function test_money_creates_valid_positive_amount_in_cents(): void
@@ -55,9 +58,11 @@ class WalletDomainTest extends TestCase
         $this->assertSame(15000, $newBalance);
     }
 
+    /**
+     * Verifies that depositing into an overdrawn wallet offsets the negative balance first.
+     */
     public function test_deposit_offsets_negative_balance_and_adds_residual_amount(): void
     {
-        // Conta negativa em -R$ 250,00 (-25000 centavos) recebe depósito de R$ 400,00 (40000 centavos)
         $newBalance = TransactionDomainRules::calculateBalanceAfterDeposit(
             currentBalanceCents: -25000,
             depositAmount: Money::fromCents(40000),
@@ -147,4 +152,3 @@ class WalletDomainTest extends TestCase
         );
     }
 }
-
