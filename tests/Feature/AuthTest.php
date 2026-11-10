@@ -17,6 +17,21 @@ class AuthTest extends TestCase
     use RefreshDatabase;
 
     /**
+     * Verifies that the guest authentication Blade views render properly.
+     */
+    public function test_login_and_register_views_render_successfully(): void
+    {
+        $this->get('/login')
+            ->assertOk()
+            ->assertSee('GRUPO ADRIANO COBUCCIO')
+            ->assertSee('Acesse sua Carteira Digital');
+
+        $this->get('/register')
+            ->assertOk()
+            ->assertSee('Abra sua Conta Financeira');
+    }
+
+    /**
      * Verifies that registering a new user creates a zero-balance wallet in the same transaction.
      */
     public function test_user_registration_provisions_zero_balance_wallet_atomically(): void
@@ -117,4 +132,3 @@ class AuthTest extends TestCase
         $this->assertGuest();
     }
 }
-
