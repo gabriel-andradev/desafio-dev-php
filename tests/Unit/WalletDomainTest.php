@@ -1,0 +1,150 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Tests\Unit;
+
+use App\Domain\Wallet\Exceptions\DomainRuleException;
+use App\Domain\Wallet\Money;
+use App\Domain\Wallet\TransactionDomainRules;
+use App\Domain\Wallet\TransactionStatus;
+use App\Domain\Wallet\TransactionType;
+use PHPUnit\Framework\TestCase;
+
+class WalletDomainTest extends TestCase
+{
+    public function test_money_creates_valid_positive_amount_in_cents(): void
+    {
+        $money = Money::fromCents(15050);
+
+        $this->assertSame(15050, $money->cents());
+        $this->assertFalse($money->isNegative());
+        $this->assertSame('R$ 150,50', $money->formatBrl());
+    }
+
+    public function test_money_rejects_zero_or_negative_transaction_amounts(): void
+    {
+        $this->expectException(DomainRuleException::class);
+        $this->expectExceptionMessage('O valor da operação deve ser maior que zero.');
+
+        Money::fromCents(0);
+    }
+
+    public function test_money_parses_brazilian_currency_strings_into_exact_cents(): void
+    {
+        $this->assertSame(25000, Money::fromBrlInput('250,00')->cents());
+        $this->assertSame(145075, Money::fromBrlInput('R$ 1.450,75')->cents());
+        $this->assertSame(1000, Money::fromBrlInput('10')->cents());
+    }
+
+    public function test_money_formats_negative_balance_properly(): void
+    {
+        $negativeBalance = Money::fromBalanceCents(-25000);
+
+        $this->assertTrue($negativeBalance->isNegative());
+        $this->assertSame('-R$ 250,00', $negativeBalance->formatBrl());
+    }
+
+    public function test_deposit_adds_to_positive_balance(): void
+    {
+        $newBalance = TransactionDomainRules::calculateBalanceAfterDeposit(
+            currentBalanceCents: 10000,
+            depositAmount: Money::fromCents(5000),
+        );
+
+        $this->assertSame(15000, $newBalance);
+    }
+
+    public function test_deposit_offsets_negative_balance_and_adds_residual_amount(): void
+    {
+        // Conta negativa em -R$ 250,00 (-25000 centavos) recebe depósito de R$ 400,00 (40000 centavos)
+        $newBalance = TransactionDomainRules::calculateBalanceAfterDeposit(
+            currentBalanceCents: -25000,
+            depositAmount: Money::fromCents(40000),
+        );
+
+        $this->assertSame(15000, $newBalance);
+    }
+
+    public function test_transfer_blocks_when_sender_has_insufficient_balance(): void
+    {
+        $this->expectException(DomainRuleException::class);
+        $this->expectExceptionMessage('Saldo insuficiente para realizar a transferência.');
+
+        TransactionDomainRules::assertTransferAllowed(
+            senderWalletId: 1,
+            receiverWalletId: 2,
+            senderBalanceCents: 5000,
+            transferAmount: Money::fromCents(5001),
+        );
+    }
+
+    public function test_transfer_blocks_when_sender_balance_is_negative(): void
+    {
+        $this->expectException(DomainRuleException::class);
+        $this->expectExceptionMessage('Saldo insuficiente para realizar a transferência.');
+
+        TransactionDomainRules::assertTransferAllowed(
+            senderWalletId: 1,
+            receiverWalletId: 2,
+            senderBalanceCents: -1000,
+            transferAmount: Money::fromCents(500),
+        );
+    }
+
+    public function test_transfer_blocks_self_transfer_to_same_wallet(): void
+    {
+        $this->expectException(DomainRuleException::class);
+        $this->expectExceptionMessage('Não é permitido transferir para a própria carteira.');
+
+        TransactionDomainRules::assertTransferAllowed(
+            senderWalletId: 10,
+            receiverWalletId: 10,
+            senderBalanceCents: 50000,
+            transferAmount: Money::fromCents(1000),
+        );
+    }
+
+    public function test_reversal_blocks_already_reversed_transaction(): void
+    {
+        $this->expectException(DomainRuleException::class);
+        $this->expectExceptionMessage('Esta operação já foi revertida anteriormente.');
+
+        TransactionDomainRules::assertReversalAllowed(
+            type: TransactionType::TRANSFER->value,
+            status: TransactionStatus::REVERSED->value,
+            actorWalletId: 1,
+            senderWalletId: 1,
+            receiverWalletId: 2,
+        );
+    }
+
+    public function test_reversal_blocks_reversing_a_reversal_entry(): void
+    {
+        $this->expectException(DomainRuleException::class);
+        $this->expectExceptionMessage('Contra-lançamentos de estorno não podem ser revertidos.');
+
+        TransactionDomainRules::assertReversalAllowed(
+            type: TransactionType::REVERSAL->value,
+            status: TransactionStatus::COMPLETED->value,
+            actorWalletId: 1,
+            senderWalletId: 2,
+            receiverWalletId: 1,
+        );
+    }
+
+    public function test_reversal_blocks_unrelated_wallet_from_reversing(): void
+    {
+        $this->expectException(DomainRuleException::class);
+        $this->expectExceptionMessage('Você não tem permissão para reverter esta transação.');
+
+        TransactionDomainRules::assertReversalAllowed(
+            type: TransactionType::TRANSFER->value,
+            status: TransactionStatus::COMPLETED->value,
+            actorWalletId: 99,
+            senderWalletId: 1,
+            receiverWalletId: 2,
+        );
+    }
+}
+
