@@ -195,6 +195,24 @@ class WalletOperationsTest extends TestCase
     }
 
     /**
+     * Verifies that the dashboard Blade view renders with modules, formatted balance, and negative balance warning.
+     */
+    public function test_dashboard_view_renders_modules_and_negative_balance_warning(): void
+    {
+        [$mariana] = $this->createUserWithWallet(
+            balanceCents: -25000,
+            email: 'mariana@cobuccio.com',
+        );
+
+        $this->actingAs($mariana)
+            ->get('/dashboard?tab=deposit')
+            ->assertOk()
+            ->assertSee('Alerta de Saldo Devedor (-R$ 250,00)')
+            ->assertSee('Simulador Contábil de Depósito')
+            ->assertSee('Extrato Contábil (Ledger) & Reversões', false);
+    }
+
+    /**
      * Helper to provision a user and an associated wallet for testing.
      *
      * @return array{0: User, 1: Wallet}
@@ -221,4 +239,3 @@ class WalletOperationsTest extends TestCase
         return [$user, $wallet];
     }
 }
-
