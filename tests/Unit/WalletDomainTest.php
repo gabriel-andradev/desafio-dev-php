@@ -6,6 +6,7 @@ namespace Tests\Unit;
 
 use App\Domain\Wallet\Exceptions\DomainRuleException;
 use App\Domain\Wallet\Money;
+use App\Domain\Wallet\ReversalState;
 use App\Domain\Wallet\TransactionDomainRules;
 use App\Domain\Wallet\TransactionStatus;
 use App\Domain\Wallet\TransactionType;
@@ -262,5 +263,50 @@ class WalletDomainTest extends TestCase
             receiverWalletId: 1,
             createdAt: new DateTimeImmutable('-25 hours'),
         );
+    }
+
+    public function test_reversal_state_is_available_inside_sender_window(): void
+    {
+        $this->assertSame(ReversalState::AVAILABLE, TransactionDomainRules::reversalState(
+            type: TransactionType::TRANSFER->value,
+            status: TransactionStatus::COMPLETED->value,
+            actorWalletId: 1,
+            senderWalletId: 1,
+            receiverWalletId: 2,
+            createdAt: new DateTimeImmutable('-10 minutes'),
+        ));
+    }
+
+    public function test_reversal_state_is_expired_after_sender_window(): void
+    {
+        $this->assertSame(ReversalState::EXPIRED, TransactionDomainRules::reversalState(
+            type: TransactionType::TRANSFER->value,
+            status: TransactionStatus::COMPLETED->value,
+            actorWalletId: 1,
+            senderWalletId: 1,
+            receiverWalletId: 2,
+            createdAt: new DateTimeImmutable('-20 minutes'),
+        ));
+    }
+
+    public function test_reversal_state_is_unavailable_for_reversed_or_unrelated_transactions(): void
+    {
+        $this->assertSame(ReversalState::UNAVAILABLE, TransactionDomainRules::reversalState(
+            type: TransactionType::TRANSFER->value,
+            status: TransactionStatus::REVERSED->value,
+            actorWalletId: 1,
+            senderWalletId: 1,
+            receiverWalletId: 2,
+            createdAt: new DateTimeImmutable('-5 minutes'),
+        ));
+
+        $this->assertSame(ReversalState::UNAVAILABLE, TransactionDomainRules::reversalState(
+            type: TransactionType::TRANSFER->value,
+            status: TransactionStatus::COMPLETED->value,
+            actorWalletId: 9,
+            senderWalletId: 1,
+            receiverWalletId: 2,
+            createdAt: new DateTimeImmutable('-5 minutes'),
+        ));
     }
 }

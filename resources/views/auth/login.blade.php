@@ -1,6 +1,5 @@
 @extends('layouts.app')
 
-@section('title', 'Entrar • Grupo Adriano Cobuccio')
 
 @section('content')
 <main class="min-h-screen bg-brand-dark text-white flex flex-col justify-center items-center px-4 py-10">
@@ -79,14 +78,29 @@
                     <label for="password" class="block text-xs font-medium text-slate-300 mb-1.5">
                         Senha
                     </label>
-                    <input
-                        id="password"
-                        name="password"
-                        type="password"
-                        required
-                        placeholder="••••••••"
-                        class="w-full px-3.5 py-2.5 rounded-lg bg-brand-dark border border-white/15 text-white placeholder-slate-500 focus:outline-none focus:border-brand-gold transition"
-                    >
+                    <div class="relative" x-data="{ showPassword: false }">
+                        <input
+                            id="password"
+                            name="password"
+                            type="password"
+                            :type="showPassword ? 'text' : 'password'"
+                            required
+                            autocomplete="current-password"
+                            placeholder="••••••••"
+                            class="w-full pl-3.5 pr-10 py-2.5 rounded-lg bg-brand-dark border border-white/15 text-white placeholder-slate-500 focus:outline-none focus:border-brand-gold transition"
+                        >
+                        <button
+                            type="button"
+                            @click="showPassword = !showPassword"
+                            :aria-label="showPassword ? 'Ocultar senha' : 'Mostrar senha'"
+                            :title="showPassword ? 'Ocultar senha' : 'Mostrar senha'"
+                            :aria-pressed="showPassword.toString()"
+                            class="absolute inset-y-0 right-0 px-3 flex items-center text-slate-400 hover:text-brand-gold transition cursor-pointer"
+                        >
+                            <x-icon name="eye" class="w-4 h-4" x-show="!showPassword" />
+                            <x-icon name="eye-off" class="w-4 h-4" x-show="showPassword" x-cloak />
+                        </button>
+                    </div>
                 </div>
             </div>
 

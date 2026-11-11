@@ -82,7 +82,7 @@ class WalletController extends Controller
         }
 
         return redirect()
-            ->route('wallet.dashboard', ['tab' => 'overview'])
+            ->route('wallet.dashboard', ['tab' => 'deposit'])
             ->with('status', 'Depósito realizado com sucesso.');
     }
 
@@ -116,7 +116,7 @@ class WalletController extends Controller
         }
 
         return redirect()
-            ->route('wallet.dashboard', ['tab' => 'statement'])
+            ->route('wallet.dashboard', ['tab' => 'transfer'])
             ->with('status', 'Transferência realizada com sucesso.');
     }
 
@@ -141,14 +141,14 @@ class WalletController extends Controller
 
         if ($request->expectsJson()) {
             return response()->json([
-                'message' => 'Operação revertida com sucesso.',
+                'message' => 'Estorno realizado com sucesso.',
                 'reversal' => $reversal,
             ]);
         }
 
         return redirect()
             ->route('wallet.dashboard', ['tab' => 'statement'])
-            ->with('status', 'Operação revertida com sucesso.');
+            ->with('status', 'Estorno realizado com sucesso.');
     }
 
     /**

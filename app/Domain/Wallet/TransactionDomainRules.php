@@ -47,6 +47,34 @@ final class TransactionDomainRules
     }
 
     /**
+     * Classifies a transaction for the statement: reversible now, reversible only if it were not too late, or never.
+     */
+    public static function reversalState(
+        string $type,
+        string $status,
+        int $actorWalletId,
+        ?int $senderWalletId,
+        int $receiverWalletId,
+        ?DateTimeInterface $createdAt,
+    ): ReversalState {
+        try {
+            self::assertReversalAllowed($type, $status, $actorWalletId, $senderWalletId, $receiverWalletId, $createdAt);
+
+            return ReversalState::AVAILABLE;
+        } catch (DomainRuleException) {
+            // Fall through: check whether only the time window blocked it.
+        }
+
+        try {
+            self::assertReversalAllowed($type, $status, $actorWalletId, $senderWalletId, $receiverWalletId, null);
+
+            return ReversalState::EXPIRED;
+        } catch (DomainRuleException) {
+            return ReversalState::UNAVAILABLE;
+        }
+    }
+
+    /**
      * Validates that a transaction is eligible for reversal by the requesting participant within allowed time windows.
      *
      * @throws DomainRuleException

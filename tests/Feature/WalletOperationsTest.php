@@ -178,6 +178,32 @@ class WalletOperationsTest extends TestCase
     }
 
     /**
+     * Verifies that the statement offers "Estornar" inside the window and explains when the window has expired.
+     */
+    public function test_statement_shows_reverse_button_then_expired_label(): void
+    {
+        [$sender] = $this->createUserWithWallet(balanceCents: 50000);
+        $this->createUserWithWallet(balanceCents: 0, email: 'bruno@cobuccio.com');
+
+        $this->actingAs($sender)->postJson('/wallet/transfer', [
+            'recipient' => 'bruno@cobuccio.com',
+            'amount' => '100,00',
+        ])->assertCreated();
+
+        $this->actingAs($sender)->get('/dashboard?tab=statement')
+            ->assertOk()
+            ->assertSee('Confirmar estorno')
+            ->assertDontSee('Prazo de estorno expirado');
+
+        $this->travel(16)->minutes();
+
+        $this->actingAs($sender)->get('/dashboard?tab=statement')
+            ->assertOk()
+            ->assertSee('Prazo de estorno expirado')
+            ->assertDontSee('Confirmar estorno');
+    }
+
+    /**
      * Verifies that the receiver can voluntarily return funds within the 24-hour window.
      */
     public function test_receiver_can_return_transfer_within_twenty_four_hours(): void
@@ -259,9 +285,9 @@ class WalletOperationsTest extends TestCase
         $this->actingAs($mariana)
             ->get('/dashboard?tab=deposit')
             ->assertOk()
-            ->assertSee('Alerta de Saldo Devedor (-R$ 250,00)')
-            ->assertSee('Simulador Contábil de Depósito')
-            ->assertSee('Extrato Contábil (Ledger) & Reversões', false);
+            ->assertSee('Sua carteira está com saldo negativo (-R$ 250,00)')
+            ->assertSee('Simulação do depósito')
+            ->assertSee('Extrato &amp; Estornos', false);
     }
 
     /**

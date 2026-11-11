@@ -4,9 +4,12 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="csrf-token" content="{{ csrf_token() }}">
-    <title>@yield('title', 'Cobuccio • Brasil Card Wallet')</title>
+    <title>Cobuccio Wallet | Carteira Financeira Digital</title>
+    <style>[x-cloak] { display: none !important; }</style>
 
     @if (file_exists(public_path('build/manifest.json')) || file_exists(public_path('hot')))
+        {{-- Inter, self-hosted by Vite: the same typeface the Node version loads via next/font. --}}
+        @fonts
         @vite(['resources/css/app.css', 'resources/js/app.js'])
     @else
         <script src="https://cdn.tailwindcss.com"></script>

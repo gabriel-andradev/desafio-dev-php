@@ -159,7 +159,7 @@ A aplicação é um monólito Blade com sessão. As mesmas rotas respondem em **
 ## 7. Testes e qualidade
 
 ```bash
-php artisan test                  # 41 testes (unitários de domínio + integração HTTP/banco)
+php artisan test                  # 45 testes (unitários de domínio + integração HTTP/banco)
 php vendor/bin/phpstan analyse    # PHPStan nível 8 com Larastan — sem erros
 php vendor/bin/pint --test        # Padrão de código (Laravel Pint)
 ```
@@ -187,6 +187,6 @@ Os testes rodam em SQLite em memória (configurado no `phpunit.xml`), sem depend
 | Autenticação | Sessão Laravel + CSRF | JWT em cookie `httpOnly` |
 | Gasto duplo | `SELECT ... FOR UPDATE` em ordem de ID | `UPDATE` condicional (`balanceCents >= valor`) |
 | Rate limit | `RateLimiter` + middleware `throttle` | `@nestjs/throttler` |
-| Testes | PHPUnit (41) + PHPStan nível 8 + Pint | Jest + Supertest (50) |
+| Testes | PHPUnit (45) + PHPStan nível 8 + Pint | Jest + Supertest (54) |
 
 Regras de negócio, prazos de estorno, limites de valor, idempotência, modelo de dados e contas de demonstração são os mesmos nas duas.
