@@ -155,6 +155,58 @@ class WalletOperationsTest extends TestCase
     }
 
     /**
+     * Verifies that the sender cannot reverse a transfer after the 15-minute window expires.
+     */
+    public function test_sender_cannot_reverse_transfer_after_fifteen_minute_window(): void
+    {
+        [$sender, $senderWallet] = $this->createUserWithWallet(balanceCents: 50000);
+        [$receiver] = $this->createUserWithWallet(balanceCents: 0, email: 'bruno@cobuccio.com');
+
+        $transferResponse = $this->actingAs($sender)->postJson('/wallet/transfer', [
+            'recipient' => 'bruno@cobuccio.com',
+            'amount' => '100,00',
+        ])->assertCreated();
+
+        $transactionId = (int) $transferResponse->json('transaction.id');
+
+        $this->travel(16)->minutes();
+
+        $response = $this->actingAs($sender)->postJson("/wallet/transactions/{$transactionId}/reverse");
+
+        $response->assertUnprocessable()
+            ->assertJsonPath('message', 'O prazo de arrependimento do remetente (15 minutos) expirou.');
+    }
+
+    /**
+     * Verifies that the receiver can voluntarily return funds within the 24-hour window.
+     */
+    public function test_receiver_can_return_transfer_within_twenty_four_hours(): void
+    {
+        [$sender, $senderWallet] = $this->createUserWithWallet(balanceCents: 50000);
+        [$receiver, $receiverWallet] = $this->createUserWithWallet(balanceCents: 0, email: 'bruno@cobuccio.com');
+
+        $transferResponse = $this->actingAs($sender)->postJson('/wallet/transfer', [
+            'recipient' => 'bruno@cobuccio.com',
+            'amount' => '100,00',
+        ])->assertCreated();
+
+        $transactionId = (int) $transferResponse->json('transaction.id');
+
+        $this->travel(2)->hours();
+
+        $response = $this->actingAs($receiver)->postJson("/wallet/transactions/{$transactionId}/reverse", [
+            'reason' => 'Devolução voluntária pelo recebedor',
+        ]);
+
+        $response->assertOk()
+            ->assertJsonPath('reversal.type', TransactionType::REVERSAL->value)
+            ->assertJsonPath('reversal.original_transaction_id', $transactionId);
+
+        $this->assertSame(50000, $senderWallet->fresh()?->balance_cents);
+        $this->assertSame(0, $receiverWallet->fresh()?->balance_cents);
+    }
+
+    /**
      * Verifies that a deposit can be reversed and that attempting a second reversal is blocked.
      */
     public function test_deposit_reversal_is_idempotent_and_blocks_duplicate_reversals(): void

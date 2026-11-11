@@ -9,6 +9,7 @@ use App\Domain\Wallet\Money;
 use App\Domain\Wallet\TransactionDomainRules;
 use App\Domain\Wallet\TransactionStatus;
 use App\Domain\Wallet\TransactionType;
+use DateTimeImmutable;
 use PHPUnit\Framework\TestCase;
 
 /**
@@ -149,6 +150,114 @@ class WalletDomainTest extends TestCase
             actorWalletId: 99,
             senderWalletId: 1,
             receiverWalletId: 2,
+        );
+    }
+
+    public function test_reversal_allows_sender_within_fifteen_minute_window(): void
+    {
+        $createdAt = new DateTimeImmutable('-10 minutes');
+
+        TransactionDomainRules::assertReversalAllowed(
+            type: TransactionType::TRANSFER->value,
+            status: TransactionStatus::COMPLETED->value,
+            actorWalletId: 1,
+            senderWalletId: 1,
+            receiverWalletId: 2,
+            createdAt: $createdAt,
+        );
+
+        $this->assertTrue(true);
+    }
+
+    public function test_reversal_blocks_sender_after_fifteen_minute_window(): void
+    {
+        $this->expectException(DomainRuleException::class);
+        $this->expectExceptionMessage('O prazo de arrependimento do remetente (15 minutos) expirou.');
+
+        TransactionDomainRules::assertReversalAllowed(
+            type: TransactionType::TRANSFER->value,
+            status: TransactionStatus::COMPLETED->value,
+            actorWalletId: 1,
+            senderWalletId: 1,
+            receiverWalletId: 2,
+            createdAt: new DateTimeImmutable('-16 minutes'),
+        );
+    }
+
+    public function test_reversal_allows_receiver_to_return_funds_within_twenty_four_hours(): void
+    {
+        $createdAt = new DateTimeImmutable('-23 hours');
+
+        TransactionDomainRules::assertReversalAllowed(
+            type: TransactionType::TRANSFER->value,
+            status: TransactionStatus::COMPLETED->value,
+            actorWalletId: 2,
+            senderWalletId: 1,
+            receiverWalletId: 2,
+            createdAt: $createdAt,
+        );
+
+        $this->assertTrue(true);
+    }
+
+    public function test_reversal_blocks_receiver_after_twenty_four_hours(): void
+    {
+        $this->expectException(DomainRuleException::class);
+        $this->expectExceptionMessage('O prazo limite para devolução voluntária (24 horas) expirou.');
+
+        TransactionDomainRules::assertReversalAllowed(
+            type: TransactionType::TRANSFER->value,
+            status: TransactionStatus::COMPLETED->value,
+            actorWalletId: 2,
+            senderWalletId: 1,
+            receiverWalletId: 2,
+            createdAt: new DateTimeImmutable('-25 hours'),
+        );
+    }
+
+    public function test_deposit_reversal_blocks_non_owner(): void
+    {
+        $this->expectException(DomainRuleException::class);
+        $this->expectExceptionMessage('Apenas o titular da carteira pode solicitar o cancelamento do depósito.');
+
+        TransactionDomainRules::assertReversalAllowed(
+            type: TransactionType::DEPOSIT->value,
+            status: TransactionStatus::COMPLETED->value,
+            actorWalletId: 99,
+            senderWalletId: null,
+            receiverWalletId: 1,
+            createdAt: new DateTimeImmutable('-5 minutes'),
+        );
+    }
+
+    public function test_deposit_reversal_allows_owner_within_twenty_four_hours(): void
+    {
+        $createdAt = new DateTimeImmutable('-2 hours');
+
+        TransactionDomainRules::assertReversalAllowed(
+            type: TransactionType::DEPOSIT->value,
+            status: TransactionStatus::COMPLETED->value,
+            actorWalletId: 1,
+            senderWalletId: null,
+            receiverWalletId: 1,
+            createdAt: $createdAt,
+        );
+
+        $this->assertTrue(true);
+    }
+
+    public function test_deposit_reversal_blocks_owner_after_twenty_four_hours(): void
+    {
+        $this->expectException(DomainRuleException::class);
+        $this->expectExceptionMessage('O prazo limite para cancelamento do depósito (24 horas) expirou.');
+
+        TransactionDomainRules::assertReversalAllowed(
+            type: TransactionType::DEPOSIT->value,
+            status: TransactionStatus::COMPLETED->value,
+            actorWalletId: 1,
+            senderWalletId: null,
+            receiverWalletId: 1,
+            createdAt: new DateTimeImmutable('-25 hours'),
         );
     }
 }

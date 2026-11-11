@@ -68,4 +68,3 @@ class Transaction extends Model
         return $this->hasOne(self::class, 'original_transaction_id');
     }
 }
-

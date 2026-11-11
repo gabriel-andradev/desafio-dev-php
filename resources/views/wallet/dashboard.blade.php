@@ -540,7 +540,24 @@
                                 $isIncoming = true;
                             }
                             $isReversed = $tx->status === 'REVERSED';
-                            $canReverse = $tx->status === 'COMPLETED' && in_array($tx->type, ['DEPOSIT', 'TRANSFER'], true);
+                            $ageInMinutes = $tx->created_at ? (int) max(0, floor((now()->getTimestamp() - $tx->created_at->getTimestamp()) / 60)) : 0;
+                            $isSender = $tx->sender_wallet_id !== null && $tx->sender_wallet_id === $walletId;
+                            $isReceiver = $tx->receiver_wallet_id === $walletId;
+
+                            $isWithinWindow = false;
+                            if ($tx->type === 'TRANSFER') {
+                                if ($isSender) {
+                                    $isWithinWindow = $ageInMinutes <= \App\Domain\Wallet\TransactionDomainRules::SENDER_REVERSAL_WINDOW_MINUTES;
+                                } elseif ($isReceiver) {
+                                    $isWithinWindow = $ageInMinutes <= \App\Domain\Wallet\TransactionDomainRules::RECEIVER_REVERSAL_WINDOW_MINUTES;
+                                }
+                            } elseif ($tx->type === 'DEPOSIT') {
+                                $isWithinWindow = $isReceiver && $ageInMinutes <= \App\Domain\Wallet\TransactionDomainRules::DEPOSIT_REVERSAL_WINDOW_MINUTES;
+                            }
+
+                            $canReverse = $tx->status === 'COMPLETED' && in_array($tx->type, ['DEPOSIT', 'TRANSFER'], true) && $isWithinWindow;
+                            $isExpired = $tx->status === 'COMPLETED' && in_array($tx->type, ['DEPOSIT', 'TRANSFER'], true) && ! $isWithinWindow;
+
                             $txMoney = Money::fromBalanceCents($tx->amount_cents)->formatBrl();
                             $senderName = $tx->senderWallet?->user?->name ?? 'Sistema';
                             $receiverName = $tx->receiverWallet?->user?->name ?? 'Usuário';
@@ -607,6 +624,10 @@
                                     >
                                         Reverter
                                     </button>
+                                @elseif ($isExpired)
+                                    <span class="px-2.5 py-1 rounded-md bg-slate-100 text-slate-500 text-[11px] font-medium">
+                                        Prazo de estorno expirado
+                                    </span>
                                 @endif
                             </div>
 

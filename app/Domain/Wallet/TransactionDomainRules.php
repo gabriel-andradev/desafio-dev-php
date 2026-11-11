@@ -5,12 +5,19 @@ declare(strict_types=1);
 namespace App\Domain\Wallet;
 
 use App\Domain\Wallet\Exceptions\DomainRuleException;
+use DateTimeInterface;
 
 /**
  * Encapsulates pure domain rules and invariants for wallet deposits, transfers, and reversals.
  */
 final class TransactionDomainRules
 {
+    public const SENDER_REVERSAL_WINDOW_MINUTES = 15;
+
+    public const RECEIVER_REVERSAL_WINDOW_MINUTES = 1440;
+
+    public const DEPOSIT_REVERSAL_WINDOW_MINUTES = 1440;
+
     /**
      * Calculates the new balance in cents after a deposit, automatically offsetting any negative balance.
      */
@@ -40,7 +47,7 @@ final class TransactionDomainRules
     }
 
     /**
-     * Validates that a transaction is eligible for reversal by the requesting participant.
+     * Validates that a transaction is eligible for reversal by the requesting participant within allowed time windows.
      *
      * @throws DomainRuleException
      */
@@ -50,6 +57,7 @@ final class TransactionDomainRules
         int $actorWalletId,
         ?int $senderWalletId,
         int $receiverWalletId,
+        ?DateTimeInterface $createdAt = null,
     ): void {
         if ($status === TransactionStatus::REVERSED->value) {
             throw new DomainRuleException('Esta operação já foi revertida anteriormente.');
@@ -59,11 +67,34 @@ final class TransactionDomainRules
             throw new DomainRuleException('Contra-lançamentos de estorno não podem ser revertidos.');
         }
 
-        $isParticipant = ($senderWalletId !== null && $actorWalletId === $senderWalletId)
-            || $actorWalletId === $receiverWalletId;
+        $isSender = $senderWalletId !== null && $actorWalletId === $senderWalletId;
+        $isReceiver = $actorWalletId === $receiverWalletId;
 
-        if (! $isParticipant) {
+        if ($type === TransactionType::DEPOSIT->value && ! $isReceiver) {
+            throw new DomainRuleException('Apenas o titular da carteira pode solicitar o cancelamento do depósito.', 403);
+        }
+
+        if (! $isSender && ! $isReceiver) {
             throw new DomainRuleException('Você não tem permissão para reverter esta transação.', 403);
+        }
+
+        if ($createdAt !== null) {
+            $currentTimestamp = function_exists('now') ? now()->getTimestamp() : time();
+            $ageInMinutes = (int) max(0, floor(($currentTimestamp - $createdAt->getTimestamp()) / 60));
+
+            if ($type === TransactionType::TRANSFER->value) {
+                if ($isSender && $ageInMinutes > self::SENDER_REVERSAL_WINDOW_MINUTES) {
+                    throw new DomainRuleException('O prazo de arrependimento do remetente (15 minutos) expirou.');
+                }
+
+                if ($isReceiver && $ageInMinutes > self::RECEIVER_REVERSAL_WINDOW_MINUTES) {
+                    throw new DomainRuleException('O prazo limite para devolução voluntária (24 horas) expirou.');
+                }
+            }
+
+            if ($type === TransactionType::DEPOSIT->value && $ageInMinutes > self::DEPOSIT_REVERSAL_WINDOW_MINUTES) {
+                throw new DomainRuleException('O prazo limite para cancelamento do depósito (24 horas) expirou.');
+            }
         }
     }
 }

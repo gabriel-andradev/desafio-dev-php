@@ -171,4 +171,3 @@ class WalletController extends Controller
             ->withErrors(['wallet' => $exception->getMessage()]);
     }
 }
-

@@ -37,4 +37,3 @@ class HealthController extends Controller
         }
     }
 }
-

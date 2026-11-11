@@ -52,4 +52,3 @@ class Wallet extends Model
         return $this->hasMany(Transaction::class, 'receiver_wallet_id');
     }
 }
-

@@ -196,6 +196,7 @@ class WalletService
                 actorWalletId: $actorWallet->id,
                 senderWalletId: $originalTransaction->sender_wallet_id,
                 receiverWalletId: $originalTransaction->receiver_wallet_id,
+                createdAt: $originalTransaction->created_at,
             );
 
             $walletIdsToLock = array_values(array_unique(array_filter([
@@ -270,4 +271,3 @@ class WalletService
         return $user;
     }
 }
-

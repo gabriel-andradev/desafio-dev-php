@@ -75,4 +75,3 @@ class TransferRequest extends FormRequest
         ];
     }
 }
-
