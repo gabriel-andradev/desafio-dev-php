@@ -265,6 +265,103 @@ class WalletOperationsTest extends TestCase
     }
 
     /**
+     * Verifies that retrying a deposit with the same idempotency key credits the wallet only once.
+     */
+    public function test_deposit_with_same_idempotency_key_is_credited_only_once(): void
+    {
+        [$user, $wallet] = $this->createUserWithWallet(balanceCents: 0);
+
+        $first = $this->actingAs($user)
+            ->withHeader('X-Idempotency-Key', 'dep-key-001')
+            ->postJson('/wallet/deposit', ['amount' => '100,00']);
+
+        $first->assertCreated()->assertJsonPath('idempotent_replay', false);
+
+        $this->actingAs($user)
+            ->withHeader('X-Idempotency-Key', 'dep-key-001')
+            ->postJson('/wallet/deposit', ['amount' => '100,00'])
+            ->assertOk()
+            ->assertJsonPath('idempotent_replay', true)
+            ->assertJsonPath('transaction.id', $first->json('transaction.id'));
+
+        $this->assertSame(10000, $wallet->fresh()?->balance_cents);
+        $this->assertSame(1, Transaction::where('type', TransactionType::DEPOSIT->value)->count());
+    }
+
+    /**
+     * Verifies that a retried transfer form submission (hidden idempotency_key field) debits the sender only once.
+     */
+    public function test_transfer_with_same_idempotency_key_is_debited_only_once(): void
+    {
+        [$sender, $senderWallet] = $this->createUserWithWallet(balanceCents: 50000);
+        [, $receiverWallet] = $this->createUserWithWallet(balanceCents: 0, email: 'bruno@cobuccio.com');
+
+        $payload = [
+            'recipient' => 'bruno@cobuccio.com',
+            'amount' => '200,00',
+            'idempotency_key' => 'trf-key-001',
+        ];
+
+        $this->actingAs($sender)->postJson('/wallet/transfer', $payload)->assertCreated();
+        $this->actingAs($sender)->postJson('/wallet/transfer', $payload)
+            ->assertOk()
+            ->assertJsonPath('idempotent_replay', true);
+
+        $this->assertSame(30000, $senderWallet->fresh()?->balance_cents);
+        $this->assertSame(20000, $receiverWallet->fresh()?->balance_cents);
+    }
+
+    /**
+     * Verifies that reusing an idempotency key for a different operation is rejected without moving money.
+     */
+    public function test_reusing_idempotency_key_for_different_operation_is_rejected(): void
+    {
+        [$user, $wallet] = $this->createUserWithWallet(balanceCents: 0);
+
+        $this->actingAs($user)
+            ->postJson('/wallet/deposit', ['amount' => '100,00', 'idempotency_key' => 'reused-key'])
+            ->assertCreated();
+
+        $this->actingAs($user)
+            ->postJson('/wallet/deposit', ['amount' => '999,00', 'idempotency_key' => 'reused-key'])
+            ->assertStatus(409);
+
+        $this->assertSame(10000, $wallet->fresh()?->balance_cents);
+    }
+
+    /**
+     * Verifies that the dashboard forms carry a fresh idempotency key on each render.
+     */
+    public function test_dashboard_forms_include_idempotency_key(): void
+    {
+        [$user] = $this->createUserWithWallet(balanceCents: 0);
+
+        $this->actingAs($user)
+            ->get('/dashboard?tab=deposit')
+            ->assertOk()
+            ->assertSee('name="idempotency_key"', false);
+    }
+
+    /**
+     * Verifies that wallet operations are limited to 30 requests per minute per user.
+     */
+    public function test_wallet_operations_are_rate_limited(): void
+    {
+        [$user] = $this->createUserWithWallet(balanceCents: 0);
+
+        for ($attempt = 0; $attempt < 30; $attempt++) {
+            $this->actingAs($user)
+                ->postJson('/wallet/deposit', ['amount' => '1,00'])
+                ->assertCreated();
+        }
+
+        $this->actingAs($user)
+            ->postJson('/wallet/deposit', ['amount' => '1,00'])
+            ->assertStatus(429)
+            ->assertJsonPath('message', 'Muitas operações em sequência. Aguarde um minuto e tente novamente.');
+    }
+
+    /**
      * Helper to provision a user and an associated wallet for testing.
      *
      * @return array{0: User, 1: Wallet}

@@ -112,6 +112,24 @@ class AuthTest extends TestCase
     }
 
     /**
+     * Verifies that login attempts are limited to 10 per minute for the same e-mail and IP.
+     */
+    public function test_login_attempts_are_rate_limited(): void
+    {
+        for ($attempt = 0; $attempt < 10; $attempt++) {
+            $this->postJson('/login', [
+                'email' => 'alvo@cobuccio.com',
+                'password' => 'senha-errada',
+            ])->assertStatus(422);
+        }
+
+        $this->postJson('/login', [
+            'email' => 'alvo@cobuccio.com',
+            'password' => 'senha-errada',
+        ])->assertStatus(429);
+    }
+
+    /**
      * Verifies that invalid credentials return a generic message to prevent user enumeration.
      */
     public function test_login_rejects_invalid_credentials_with_generic_message(): void

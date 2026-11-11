@@ -26,6 +26,10 @@ class DepositRequest extends FormRequest
      */
     protected function prepareForValidation(): void
     {
+        if (! $this->filled('idempotency_key') && $this->hasHeader('X-Idempotency-Key')) {
+            $this->merge(['idempotency_key' => (string) $this->header('X-Idempotency-Key')]);
+        }
+
         if (! $this->has('amount_cents') && $this->filled('amount')) {
             try {
                 $money = Money::fromBrlInput((string) $this->input('amount'));
@@ -46,6 +50,7 @@ class DepositRequest extends FormRequest
         return [
             'amount_cents' => ['required', 'integer', 'min:1', 'max:1000000000'],
             'description' => ['nullable', 'string', 'max:160'],
+            'idempotency_key' => ['nullable', 'string', 'max:100'],
         ];
     }
 

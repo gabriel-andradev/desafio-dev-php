@@ -67,6 +67,7 @@ class WalletController extends Controller
                 user: $user,
                 amountCents: (int) $validated['amount_cents'],
                 description: $validated['description'] ?? null,
+                idempotencyKey: $validated['idempotency_key'] ?? null,
             );
         } catch (DomainRuleException $exception) {
             return $this->handleDomainException($request, $exception, 'deposit');
@@ -76,7 +77,8 @@ class WalletController extends Controller
             return response()->json([
                 'message' => 'Depósito realizado com sucesso.',
                 'transaction' => $transaction,
-            ], 201);
+                'idempotent_replay' => ! $transaction->wasRecentlyCreated,
+            ], $transaction->wasRecentlyCreated ? 201 : 200);
         }
 
         return redirect()
@@ -99,6 +101,7 @@ class WalletController extends Controller
                 recipientIdentifier: (string) $validated['recipient'],
                 amountCents: (int) $validated['amount_cents'],
                 description: $validated['description'] ?? null,
+                idempotencyKey: $validated['idempotency_key'] ?? null,
             );
         } catch (DomainRuleException $exception) {
             return $this->handleDomainException($request, $exception, 'transfer');
@@ -108,7 +111,8 @@ class WalletController extends Controller
             return response()->json([
                 'message' => 'Transferência realizada com sucesso.',
                 'transaction' => $transaction,
-            ], 201);
+                'idempotent_replay' => ! $transaction->wasRecentlyCreated,
+            ], $transaction->wasRecentlyCreated ? 201 : 200);
         }
 
         return redirect()

@@ -13,6 +13,7 @@ use App\Models\Transaction;
 use App\Models\User;
 use App\Models\Wallet;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -80,17 +81,35 @@ class WalletService
 
     /**
      * Credits a deposit into the user's wallet atomically, offsetting any existing negative balance.
+     * When an idempotency key is given, a retried request returns the original transaction instead of crediting twice.
      *
      * @throws DomainRuleException
      */
-    public function deposit(User $user, int $amountCents, ?string $description = null): Transaction
-    {
+    public function deposit(
+        User $user,
+        int $amountCents,
+        ?string $description = null,
+        ?string $idempotencyKey = null,
+    ): Transaction {
         $depositMoney = Money::fromCents($amountCents);
+        $idempotencyKey = $this->normalizeIdempotencyKey($idempotencyKey);
 
-        return DB::transaction(function () use ($user, $depositMoney, $description): Transaction {
+        $replayLookup = fn (): ?Transaction => $this->findIdempotentReplay(
+            idempotencyKey: $idempotencyKey,
+            type: TransactionType::DEPOSIT,
+            amountCents: $depositMoney->cents(),
+            senderWalletId: null,
+            receiverWalletId: (int) Wallet::where('user_id', $user->id)->value('id'),
+        );
+
+        return $this->runIdempotent($idempotencyKey, $replayLookup, fn (): Transaction => DB::transaction(function () use ($user, $depositMoney, $description, $idempotencyKey, $replayLookup): Transaction {
             $wallet = Wallet::where('user_id', $user->id)
                 ->lockForUpdate()
                 ->firstOrFail();
+
+            if (($replay = $replayLookup()) !== null) {
+                return $replay;
+            }
 
             $newBalanceCents = TransactionDomainRules::calculateBalanceAfterDeposit(
                 currentBalanceCents: $wallet->balance_cents,
@@ -108,12 +127,14 @@ class WalletService
                 'sender_wallet_id' => null,
                 'receiver_wallet_id' => $wallet->id,
                 'description' => $description ?: 'Depósito em conta',
+                'idempotency_key' => $idempotencyKey,
             ]);
-        });
+        }));
     }
 
     /**
      * Executes an atomic peer-to-peer transfer using ordered pessimistic row locks to prevent deadlocks.
+     * When an idempotency key is given, a retried request returns the original transaction instead of debiting twice.
      *
      * @throws DomainRuleException
      */
@@ -122,13 +143,27 @@ class WalletService
         string $recipientIdentifier,
         int $amountCents,
         ?string $description = null,
+        ?string $idempotencyKey = null,
     ): Transaction {
         $transferMoney = Money::fromCents($amountCents);
         $recipientUser = $this->resolveRecipientUser($recipientIdentifier);
+        $idempotencyKey = $this->normalizeIdempotencyKey($idempotencyKey);
 
-        return DB::transaction(function () use ($sender, $recipientUser, $transferMoney, $description): Transaction {
+        $replayLookup = fn (): ?Transaction => $this->findIdempotentReplay(
+            idempotencyKey: $idempotencyKey,
+            type: TransactionType::TRANSFER,
+            amountCents: $transferMoney->cents(),
+            senderWalletId: (int) Wallet::where('user_id', $sender->id)->value('id'),
+            receiverWalletId: (int) Wallet::where('user_id', $recipientUser->id)->value('id'),
+        );
+
+        return $this->runIdempotent($idempotencyKey, $replayLookup, fn (): Transaction => DB::transaction(function () use ($sender, $recipientUser, $transferMoney, $description, $idempotencyKey, $replayLookup): Transaction {
             $senderWalletRef = Wallet::where('user_id', $sender->id)->firstOrFail();
             $receiverWalletRef = Wallet::where('user_id', $recipientUser->id)->firstOrFail();
+
+            if (($replay = $replayLookup()) !== null) {
+                return $replay;
+            }
 
             if ($senderWalletRef->id === $receiverWalletRef->id) {
                 throw new DomainRuleException('Não é permitido transferir para a própria carteira.');
@@ -168,8 +203,9 @@ class WalletService
                 'sender_wallet_id' => $senderWallet->id,
                 'receiver_wallet_id' => $receiverWallet->id,
                 'description' => $description ?: 'Transferência para '.$recipientUser->name,
+                'idempotency_key' => $idempotencyKey,
             ]);
-        });
+        }));
     }
 
     /**
@@ -246,6 +282,69 @@ class WalletService
                 'reversal_reason' => $resolvedReason,
             ]);
         });
+    }
+
+    /**
+     * Runs a wallet operation and, if a concurrent request with the same idempotency key committed first,
+     * returns that request's transaction instead of failing on the unique constraint.
+     *
+     * @param  callable(): ?Transaction  $replayLookup
+     * @param  callable(): Transaction  $operation
+     *
+     * @throws DomainRuleException
+     */
+    private function runIdempotent(?string $idempotencyKey, callable $replayLookup, callable $operation): Transaction
+    {
+        try {
+            return $operation();
+        } catch (UniqueConstraintViolationException $exception) {
+            if ($idempotencyKey === null) {
+                throw $exception;
+            }
+
+            return $replayLookup() ?? throw $exception;
+        }
+    }
+
+    /**
+     * Returns the transaction already recorded under the idempotency key, after checking it describes the same operation.
+     *
+     * @throws DomainRuleException when the key was already used for a different operation
+     */
+    private function findIdempotentReplay(
+        ?string $idempotencyKey,
+        TransactionType $type,
+        int $amountCents,
+        ?int $senderWalletId,
+        int $receiverWalletId,
+    ): ?Transaction {
+        if ($idempotencyKey === null) {
+            return null;
+        }
+
+        $existing = Transaction::where('idempotency_key', $idempotencyKey)->first();
+
+        if ($existing === null) {
+            return null;
+        }
+
+        $isSameOperation = $existing->type === $type->value
+            && $existing->amount_cents === $amountCents
+            && ($existing->sender_wallet_id === null ? null : (int) $existing->sender_wallet_id) === $senderWalletId
+            && (int) $existing->receiver_wallet_id === $receiverWalletId;
+
+        if (! $isSameOperation) {
+            throw new DomainRuleException('Esta chave de idempotência já foi utilizada em outra operação.', 409);
+        }
+
+        return $existing;
+    }
+
+    private function normalizeIdempotencyKey(?string $idempotencyKey): ?string
+    {
+        $trimmed = trim((string) $idempotencyKey);
+
+        return $trimmed === '' ? null : $trimmed;
     }
 
     /**

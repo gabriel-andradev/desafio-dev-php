@@ -26,6 +26,10 @@ class TransferRequest extends FormRequest
      */
     protected function prepareForValidation(): void
     {
+        if (! $this->filled('idempotency_key') && $this->hasHeader('X-Idempotency-Key')) {
+            $this->merge(['idempotency_key' => (string) $this->header('X-Idempotency-Key')]);
+        }
+
         if ($this->filled('recipient')) {
             $rawRecipient = trim((string) $this->input('recipient'));
             $normalizedRecipient = str_contains($rawRecipient, '@')
@@ -56,6 +60,7 @@ class TransferRequest extends FormRequest
             'recipient' => ['required', 'string', 'max:255'],
             'amount_cents' => ['required', 'integer', 'min:1', 'max:1000000000'],
             'description' => ['nullable', 'string', 'max:160'],
+            'idempotency_key' => ['nullable', 'string', 'max:100'],
         ];
     }
 

@@ -23,6 +23,7 @@ class Transaction extends Model
         'description',
         'reversal_reason',
         'reversed_at',
+        'idempotency_key',
     ];
 
     /**

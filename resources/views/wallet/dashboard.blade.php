@@ -332,6 +332,7 @@
 
                 <form method="POST" action="{{ route('wallet.deposit') }}" class="space-y-4">
                     @csrf
+                    <input type="hidden" name="idempotency_key" value="{{ (string) \Illuminate\Support\Str::uuid() }}">
 
                     <div>
                         <label for="deposit_amount" class="block text-xs font-semibold text-slate-700 mb-1.5">
@@ -428,6 +429,7 @@
 
                 <form method="POST" action="{{ route('wallet.transfer') }}" class="space-y-4">
                     @csrf
+                    <input type="hidden" name="idempotency_key" value="{{ (string) \Illuminate\Support\Str::uuid() }}">
 
                     <div>
                         <label for="transfer_recipient" class="block text-xs font-semibold text-slate-700 mb-1.5">
