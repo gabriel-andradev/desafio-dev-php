@@ -57,6 +57,21 @@ class AuthTest extends TestCase
     }
 
     /**
+     * Verifies the password policy shared with the Node version: at least 8 characters.
+     */
+    public function test_registration_rejects_password_shorter_than_eight_characters(): void
+    {
+        $this->postJson('/register', [
+            'name' => 'Gabriel Cobuccio',
+            'email' => 'gabriel@cobuccio.com',
+            'cpf' => '11122233344',
+            'password' => '1234567',
+        ])->assertStatus(422)->assertJsonValidationErrors('password');
+
+        $this->assertGuest();
+    }
+
+    /**
      * Verifies that formatted CPFs are normalized to 11 digits and duplicates are rejected.
      */
     public function test_registration_normalizes_formatted_cpf_and_rejects_duplicates(): void

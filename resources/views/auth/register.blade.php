@@ -73,6 +73,7 @@
                         type="text"
                         required
                         minlength="3"
+                        maxlength="100"
                         value="{{ old('name') }}"
                         placeholder="Ex: Gabriel Silva"
                         class="w-full px-3.5 py-2.5 rounded-lg bg-brand-dark border border-white/15 text-white placeholder-slate-500 focus:outline-none focus:border-brand-gold transition"
@@ -124,6 +125,8 @@
                         type="password"
                         required
                         minlength="8"
+                        maxlength="72"
+                        autocomplete="new-password"
                         placeholder="••••••••"
                         class="w-full px-3.5 py-2.5 rounded-lg bg-brand-dark border border-white/15 text-white placeholder-slate-500 focus:outline-none focus:border-brand-gold transition"
                     >

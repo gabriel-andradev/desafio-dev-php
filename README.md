@@ -55,7 +55,7 @@ Acesse http://localhost:8000.
 
 ## 2. Contas de demonstração
 
-Criadas pelo seed (mesmas contas da versão Node). Senha de todas: `password123`.
+Criadas pelo seed. Senha de todas: `password123`.
 
 | Titular | E-mail | CPF | Saldo inicial | Para que serve |
 | :--- | :--- | :--- | :--- | :--- |
@@ -71,6 +71,7 @@ Estas regras são as mesmas na versão Node.
 
 **Cadastro e acesso**
 - E-mail e CPF são únicos. O cadastro cria o usuário e a carteira (saldo zero) na mesma transação.
+- Nome de 3 a 100 caracteres; senha de 8 a 72 caracteres (o limite de 72 é o máximo que o bcrypt considera).
 - Falha de login retorna mensagem genérica, sem revelar se o e-mail existe.
 
 **Depósito**
@@ -158,7 +159,7 @@ A aplicação é um monólito Blade com sessão. As mesmas rotas respondem em **
 ## 7. Testes e qualidade
 
 ```bash
-php artisan test                  # 40 testes (unitários de domínio + integração HTTP/banco)
+php artisan test                  # 41 testes (unitários de domínio + integração HTTP/banco)
 php vendor/bin/phpstan analyse    # PHPStan nível 8 com Larastan — sem erros
 php vendor/bin/pint --test        # Padrão de código (Laravel Pint)
 ```
@@ -186,6 +187,6 @@ Os testes rodam em SQLite em memória (configurado no `phpunit.xml`), sem depend
 | Autenticação | Sessão Laravel + CSRF | JWT em cookie `httpOnly` |
 | Gasto duplo | `SELECT ... FOR UPDATE` em ordem de ID | `UPDATE` condicional (`balanceCents >= valor`) |
 | Rate limit | `RateLimiter` + middleware `throttle` | `@nestjs/throttler` |
-| Testes | PHPUnit (40) + PHPStan nível 8 + Pint | Jest + Supertest (48) |
+| Testes | PHPUnit (41) + PHPStan nível 8 + Pint | Jest + Supertest (50) |
 
 Regras de negócio, prazos de estorno, limites de valor, idempotência, modelo de dados e contas de demonstração são os mesmos nas duas.

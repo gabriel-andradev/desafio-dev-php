@@ -43,7 +43,7 @@ class RegisterRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'name' => ['required', 'string', 'min:3', 'max:120'],
+            'name' => ['required', 'string', 'min:3', 'max:100'],
             'email' => ['required', 'string', 'email', 'max:255', 'unique:users,email'],
             'cpf' => ['required', 'string', 'digits:11', 'unique:users,cpf'],
             'password' => ['required', 'string', 'min:8', 'max:72'],
@@ -60,6 +60,8 @@ class RegisterRequest extends FormRequest
         return [
             'name.required' => 'Informe seu nome completo.',
             'name.min' => 'O nome deve ter pelo menos 3 caracteres.',
+            'name.max' => 'O nome deve ter no máximo 100 caracteres.',
+            'password.max' => 'A senha deve ter no máximo 72 caracteres.',
             'email.required' => 'Informe seu endereço de e-mail.',
             'email.email' => 'Informe um endereço de e-mail válido.',
             'email.unique' => 'Este e-mail já está cadastrado.',
