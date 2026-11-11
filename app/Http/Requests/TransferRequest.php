@@ -58,8 +58,8 @@ class TransferRequest extends FormRequest
     {
         return [
             'recipient' => ['required', 'string', 'max:255'],
-            'amount_cents' => ['required', 'integer', 'min:1', 'max:1000000000'],
-            'description' => ['nullable', 'string', 'max:160'],
+            'amount_cents' => ['required', 'integer', 'min:1', 'max:100000000'],
+            'description' => ['nullable', 'string', 'max:140'],
             'idempotency_key' => ['nullable', 'string', 'max:100'],
         ];
     }

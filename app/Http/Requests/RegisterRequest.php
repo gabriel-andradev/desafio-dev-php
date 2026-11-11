@@ -70,4 +70,21 @@ class RegisterRequest extends FormRequest
             'password.min' => 'A senha deve conter pelo menos 8 caracteres.',
         ];
     }
+
+    /**
+     * Returns the validated registration fields in the exact shape the AuthService expects.
+     *
+     * @return array{name: string, email: string, cpf: string, password: string}
+     */
+    public function registrationData(): array
+    {
+        $this->validated();
+
+        return [
+            'name' => $this->string('name')->toString(),
+            'email' => $this->string('email')->toString(),
+            'cpf' => $this->string('cpf')->toString(),
+            'password' => $this->string('password')->toString(),
+        ];
+    }
 }

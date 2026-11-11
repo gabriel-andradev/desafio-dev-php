@@ -45,7 +45,7 @@ class AuthController extends Controller
      */
     public function register(RegisterRequest $request): RedirectResponse|JsonResponse
     {
-        $user = $this->authService->register($request->validated());
+        $user = $this->authService->register($request->registrationData());
 
         Auth::login($user);
         $request->session()->regenerate();
@@ -72,7 +72,7 @@ class AuthController extends Controller
      */
     public function login(LoginRequest $request): RedirectResponse|JsonResponse
     {
-        $credentials = $request->only('email', 'password');
+        $credentials = $request->credentials();
 
         if (! $this->authService->attemptLogin($credentials)) {
             throw ValidationException::withMessages([

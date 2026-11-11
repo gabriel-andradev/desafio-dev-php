@@ -48,8 +48,8 @@ class DepositRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'amount_cents' => ['required', 'integer', 'min:1', 'max:1000000000'],
-            'description' => ['nullable', 'string', 'max:160'],
+            'amount_cents' => ['required', 'integer', 'min:1', 'max:100000000'],
+            'description' => ['nullable', 'string', 'max:140'],
             'idempotency_key' => ['nullable', 'string', 'max:100'],
         ];
     }

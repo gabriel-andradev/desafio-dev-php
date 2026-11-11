@@ -226,7 +226,7 @@ class WalletOperationsTest extends TestCase
             ])
             ->assertOk();
 
-        $this->assertSame(0, $wallet->fresh()?->balance_cents);
+        $this->assertSame(0, $wallet->fresh()->balance_cents);
 
         $secondAttempt = $this->actingAs($user)
             ->postJson("/wallet/transactions/{$depositId}/reverse");

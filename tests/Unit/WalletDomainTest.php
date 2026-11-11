@@ -166,7 +166,8 @@ class WalletDomainTest extends TestCase
             createdAt: $createdAt,
         );
 
-        $this->assertTrue(true);
+        // Reaching this line means no DomainRuleException was thrown.
+        $this->addToAssertionCount(1);
     }
 
     public function test_reversal_blocks_sender_after_fifteen_minute_window(): void
@@ -197,7 +198,8 @@ class WalletDomainTest extends TestCase
             createdAt: $createdAt,
         );
 
-        $this->assertTrue(true);
+        // Reaching this line means no DomainRuleException was thrown.
+        $this->addToAssertionCount(1);
     }
 
     public function test_reversal_blocks_receiver_after_twenty_four_hours(): void
@@ -243,7 +245,8 @@ class WalletDomainTest extends TestCase
             createdAt: $createdAt,
         );
 
-        $this->assertTrue(true);
+        // Reaching this line means no DomainRuleException was thrown.
+        $this->addToAssertionCount(1);
     }
 
     public function test_deposit_reversal_blocks_owner_after_twenty_four_hours(): void

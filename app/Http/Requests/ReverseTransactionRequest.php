@@ -27,7 +27,7 @@ class ReverseTransactionRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'reason' => ['nullable', 'string', 'max:255'],
+            'reason' => ['nullable', 'string', 'max:200'],
         ];
     }
 }

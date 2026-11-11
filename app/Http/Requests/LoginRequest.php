@@ -57,4 +57,19 @@ class LoginRequest extends FormRequest
             'password.required' => 'Informe sua senha.',
         ];
     }
+
+    /**
+     * Returns the validated credentials in the exact shape the AuthService expects.
+     *
+     * @return array{email: string, password: string}
+     */
+    public function credentials(): array
+    {
+        $this->validated();
+
+        return [
+            'email' => $this->string('email')->toString(),
+            'password' => $this->string('password')->toString(),
+        ];
+    }
 }

@@ -359,7 +359,7 @@
                             id="deposit_description"
                             name="description"
                             type="text"
-                            maxlength="160"
+                            maxlength="140"
                             placeholder="Ex: Aporte de capital / Cobertura de conta"
                             class="w-full px-3.5 py-2.5 rounded-lg border border-slate-300 text-slate-900 text-xs focus:outline-none focus:border-brand-navy"
                         >
@@ -472,7 +472,7 @@
                             id="transfer_description"
                             name="description"
                             type="text"
-                            maxlength="160"
+                            maxlength="140"
                             placeholder="Ex: Pagamento de serviço"
                             class="w-full px-3.5 py-2.5 rounded-lg border border-slate-300 text-slate-900 text-xs focus:outline-none focus:border-brand-navy"
                         >
