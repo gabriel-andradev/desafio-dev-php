@@ -37,17 +37,30 @@ Aplicação Full Stack de carteira digital desenvolvida em **PHP** com **Laravel
 
 ## 3. Como Executar o Projeto
 
-### Opção A: Via Docker Compose
-```bash
-cp .env.example .env
-docker compose up -d --build
-docker compose exec app composer install
-docker compose exec app php artisan key:generate
-docker compose exec app php artisan migrate --seed
-```
-Acesse no navegador: `http://localhost:8000`
+### Opção A: Via Docker Compose (Recomendado — 1 Comando, Zero Configuração)
 
-### Opção B: Execução Local (PHP + SQLite/MySQL)
+O projeto conta com inicialização **100% automatizada** via script de bootstrap do container: a cópia do `.env`, a instalação das dependências do Composer, a geração de chave criptográfica (`APP_KEY`) e a execução das *migrations* com os dados de teste (*seeders*) acontecem automaticamente durante o boot.
+
+Basta clonar o repositório e executar:
+
+```bash
+docker compose up --build
+```
+> Ou para rodar em segundo plano: `docker compose up -d --build`
+
+Acesse no navegador: **`http://localhost:8000`**
+
+Para rodar a suíte completa de testes dentro do container:
+```bash
+docker compose exec app php artisan test
+```
+
+---
+
+### Opção B: Execução Local (PHP nativo + SQLite / MySQL)
+
+Caso prefira rodar diretamente na máquina sem Docker:
+
 ```bash
 cp .env.example .env
 composer install
@@ -55,7 +68,7 @@ php artisan key:generate
 php artisan migrate --seed
 php artisan serve
 ```
-Acesse no navegador: `http://localhost:8000`
+Acesse no navegador: **`http://localhost:8000`**
 
 ---
 

@@ -7,13 +7,12 @@ namespace App\Http\Controllers;
 use App\Http\Requests\LoginRequest;
 use App\Http\Requests\RegisterRequest;
 use App\Models\User;
-use App\Models\Wallet;
+use App\Services\AuthService;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 /**
@@ -21,6 +20,10 @@ use Illuminate\Validation\ValidationException;
  */
 class AuthController extends Controller
 {
+    public function __construct(
+        private readonly AuthService $authService,
+    ) {}
+
     /**
      * Displays the login screen.
      */
@@ -42,23 +45,7 @@ class AuthController extends Controller
      */
     public function register(RegisterRequest $request): RedirectResponse|JsonResponse
     {
-        $validated = $request->validated();
-
-        $user = DB::transaction(function () use ($validated): User {
-            $newUser = User::create([
-                'name' => $validated['name'],
-                'email' => $validated['email'],
-                'cpf' => $validated['cpf'],
-                'password' => $validated['password'],
-            ]);
-
-            Wallet::create([
-                'user_id' => $newUser->id,
-                'balance_cents' => 0,
-            ]);
-
-            return $newUser;
-        });
+        $user = $this->authService->register($request->validated());
 
         Auth::login($user);
         $request->session()->regenerate();
@@ -87,7 +74,7 @@ class AuthController extends Controller
     {
         $credentials = $request->only('email', 'password');
 
-        if (! Auth::attempt($credentials)) {
+        if (! $this->authService->attemptLogin($credentials)) {
             throw ValidationException::withMessages([
                 'email' => 'Credenciais inválidas. Verifique seu e-mail e senha.',
             ]);
@@ -118,7 +105,7 @@ class AuthController extends Controller
      */
     public function logout(Request $request): RedirectResponse|JsonResponse
     {
-        Auth::logout();
+        $this->authService->logout();
 
         $request->session()->invalidate();
         $request->session()->regenerateToken();
