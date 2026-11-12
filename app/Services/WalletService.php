@@ -6,6 +6,7 @@ namespace App\Services;
 
 use App\Domain\Wallet\Exceptions\DomainRuleException;
 use App\Domain\Wallet\Money;
+use App\Domain\Wallet\ReversalSource;
 use App\Domain\Wallet\TransactionDomainRules;
 use App\Domain\Wallet\TransactionStatus;
 use App\Domain\Wallet\TransactionType;
@@ -234,52 +235,96 @@ class WalletService
                 createdAt: $originalTransaction->created_at,
             );
 
-            $walletIdsToLock = array_values(array_unique(array_filter([
-                $originalTransaction->sender_wallet_id,
-                $originalTransaction->receiver_wallet_id,
-            ])));
-
-            // Row locks in ID order on MySQL/PostgreSQL; a no-op on SQLite (see transfer()).
-            Wallet::whereIn('id', $walletIdsToLock)
-                ->orderBy('id')
-                ->lockForUpdate()
-                ->get();
-
             $resolvedReason = trim((string) $reason) !== ''
                 ? trim((string) $reason)
                 : 'Solicitação de estorno pelo usuário';
 
-            // Conditional status change: if a concurrent request reversed it first, nothing is updated.
-            $reversedRows = Transaction::whereKey($originalTransaction->id)
-                ->where('status', TransactionStatus::COMPLETED->value)
-                ->update([
-                    'status' => TransactionStatus::REVERSED->value,
-                    'reversal_reason' => $resolvedReason,
-                    'reversed_at' => now(),
-                ]);
-
-            if ($reversedRows === 0) {
-                throw new DomainRuleException('Esta operação já foi revertida anteriormente.', 409);
-            }
-
-            // The receiver may already have spent the money: the debit is allowed to go negative (policy).
-            Wallet::whereKey($originalTransaction->receiver_wallet_id)->decrement('balance_cents', $originalTransaction->amount_cents);
-
-            if ($originalTransaction->type === TransactionType::TRANSFER->value && $originalTransaction->sender_wallet_id !== null) {
-                Wallet::whereKey($originalTransaction->sender_wallet_id)->increment('balance_cents', $originalTransaction->amount_cents);
-            }
-
-            return Transaction::create([
-                'type' => TransactionType::REVERSAL->value,
-                'status' => TransactionStatus::COMPLETED->value,
-                'amount_cents' => $originalTransaction->amount_cents,
-                'sender_wallet_id' => $originalTransaction->receiver_wallet_id,
-                'receiver_wallet_id' => $originalTransaction->sender_wallet_id ?? $originalTransaction->receiver_wallet_id,
-                'original_transaction_id' => $originalTransaction->id,
-                'description' => 'Estorno da operação #'.$originalTransaction->id,
-                'reversal_reason' => $resolvedReason,
-            ]);
+            return $this->applyReversal($originalTransaction, $resolvedReason, ReversalSource::USER, 'user:'.$actor->id);
         });
+    }
+
+    /**
+     * Internal compensation of a technical inconsistency (e.g. a credit found wrong by reconciliation).
+     * Not exposed over HTTP: only the `wallet:compensate` Artisan command calls it, so the trusted origin is
+     * whoever has shell access to the server. No user time windows apply; justification and operator are required.
+     *
+     * @throws DomainRuleException
+     */
+    public function compensateTransaction(int $transactionId, string $reason, string $operator): Transaction
+    {
+        return DB::transaction(function () use ($transactionId, $reason, $operator): Transaction {
+            $originalTransaction = Transaction::whereKey($transactionId)->lockForUpdate()->first();
+
+            if ($originalTransaction === null) {
+                throw new DomainRuleException('Transação não encontrada.', 404);
+            }
+
+            TransactionDomainRules::assertCompensationAllowed(
+                type: $originalTransaction->type,
+                status: $originalTransaction->status,
+                reason: $reason,
+                operator: $operator,
+            );
+
+            return $this->applyReversal(
+                $originalTransaction,
+                'Compensação técnica: '.trim($reason),
+                ReversalSource::COMPENSATION,
+                'operator:'.trim($operator),
+            );
+        });
+    }
+
+    /**
+     * Shared reversal core (user request or compensation). Must run inside DB::transaction().
+     *
+     * @throws DomainRuleException
+     */
+    private function applyReversal(Transaction $originalTransaction, string $resolvedReason, ReversalSource $source, string $actor): Transaction
+    {
+        $walletIdsToLock = array_values(array_unique(array_filter([
+            $originalTransaction->sender_wallet_id,
+            $originalTransaction->receiver_wallet_id,
+        ])));
+
+        // Row locks in ID order on MySQL/PostgreSQL; a no-op on SQLite (see transfer()).
+        Wallet::whereIn('id', $walletIdsToLock)
+            ->orderBy('id')
+            ->lockForUpdate()
+            ->get();
+
+        // Conditional status change: if a concurrent request reversed it first, nothing is updated.
+        $reversedRows = Transaction::whereKey($originalTransaction->id)
+            ->where('status', TransactionStatus::COMPLETED->value)
+            ->update([
+                'status' => TransactionStatus::REVERSED->value,
+                'reversal_reason' => $resolvedReason,
+                'reversed_at' => now(),
+            ]);
+
+        if ($reversedRows === 0) {
+            throw new DomainRuleException('Esta operação já foi revertida anteriormente.', 409);
+        }
+
+        // The receiver may already have spent the money: the debit is allowed to go negative (policy).
+        Wallet::whereKey($originalTransaction->receiver_wallet_id)->decrement('balance_cents', $originalTransaction->amount_cents);
+
+        if ($originalTransaction->type === TransactionType::TRANSFER->value && $originalTransaction->sender_wallet_id !== null) {
+            Wallet::whereKey($originalTransaction->sender_wallet_id)->increment('balance_cents', $originalTransaction->amount_cents);
+        }
+
+        return Transaction::create([
+            'type' => TransactionType::REVERSAL->value,
+            'status' => TransactionStatus::COMPLETED->value,
+            'amount_cents' => $originalTransaction->amount_cents,
+            'sender_wallet_id' => $originalTransaction->receiver_wallet_id,
+            'receiver_wallet_id' => $originalTransaction->sender_wallet_id ?? $originalTransaction->receiver_wallet_id,
+            'original_transaction_id' => $originalTransaction->id,
+            'description' => 'Estorno da operação #'.$originalTransaction->id,
+            'reversal_reason' => $resolvedReason,
+            'reversal_source' => $source->value,
+            'reversal_actor' => $actor,
+        ]);
     }
 
     /**

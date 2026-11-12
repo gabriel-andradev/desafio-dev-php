@@ -46,6 +46,36 @@ final class TransactionDomainRules
         }
     }
 
+    /** Minimum length of the justification required for an internal compensation. */
+    public const COMPENSATION_REASON_MIN_LENGTH = 10;
+
+    /**
+     * Validates an internal compensation of a technical inconsistency.
+     * Unlike a user reversal there is no time window and no participant check: the trusted origin is
+     * the operator running the command on the server. It still requires a justification and an operator,
+     * and can never touch a reversal entry or something already reversed.
+     *
+     * @throws DomainRuleException
+     */
+    public static function assertCompensationAllowed(string $type, string $status, string $reason, string $operator): void
+    {
+        if ($status === TransactionStatus::REVERSED->value) {
+            throw new DomainRuleException('Esta operação já foi revertida anteriormente.', 409);
+        }
+
+        if ($type === TransactionType::REVERSAL->value) {
+            throw new DomainRuleException('Contra-lançamentos de estorno não podem ser revertidos.');
+        }
+
+        if (mb_strlen(trim($reason)) < self::COMPENSATION_REASON_MIN_LENGTH) {
+            throw new DomainRuleException('Informe uma justificativa com pelo menos '.self::COMPENSATION_REASON_MIN_LENGTH.' caracteres.');
+        }
+
+        if (trim($operator) === '') {
+            throw new DomainRuleException('Informe o responsável pela compensação.');
+        }
+    }
+
     /**
      * Classifies a transaction for the statement: reversible now, reversible only if it were not too late, or never.
      */

@@ -4,7 +4,7 @@ Carteira financeira digital feita para o desafio técnico full stack do **Grupo 
 
 O mesmo produto também foi implementado em **Node.js (NestJS + Next.js)** (repositório `desafio-dev-next`). As regras de negócio, os limites e as contas de demonstração são os mesmos; a arquitetura de cada um segue o próprio framework. A comparação completa está em [`docs/COMPARACAO_TECNICA.md`](docs/COMPARACAO_TECNICA.md).
 
-**Diferenciais implementados:** valores em centavos inteiros, ledger imutável com estorno por contra-lançamento, idempotência de depósitos e transferências, proteção contra gasto duplo testada com processos PHP simultâneos, limite de requisições e PHPStan nível 8.
+**Diferenciais implementados:** valores em centavos inteiros, ledger imutável com estorno por contra-lançamento, idempotência de depósitos e transferências, proteção contra gasto duplo testada com processos PHP simultâneos, compensação interna auditável, limite de requisições e PHPStan nível 8.
 
 ---
 
@@ -52,7 +52,14 @@ O mesmo produto também foi implementado em **Node.js (NestJS + Next.js)** (repo
 
 Os prazos são uma política desta aplicação, não do enunciado.
 
-**Idempotência:** depósitos e transferências aceitam uma chave (`X-Idempotency-Key` ou campo `idempotency_key`). Repetir a chave devolve a operação original sem mover dinheiro; reutilizá-la em outra operação retorna **409**.
+**Compensação por inconsistência técnica:** um estorno interno, sem as janelas de prazo do usuário, para corrigir erros técnicos (ex.: crédito duplicado encontrado numa conciliação). Não existe rota HTTP para isso: só o comando Artisan `wallet:compensate` (executado no servidor) chama a operação. Exige justificativa (mín. 10 caracteres) e responsável, grava `reversal_source = COMPENSATION` e `reversal_actor = operator:<nome>` no lançamento `REVERSAL`, e não compensa duas vezes a mesma operação.
+
+```bash
+php artisan wallet:compensate <id> --reason="Crédito duplicado na conciliação" --operator=<responsável>
+# no container: docker compose exec app php artisan wallet:compensate ...
+```
+
+**Idempotência:** depósitos e transferências aceitam uma chave (`X-Idempotency-Key` ou campo `idempotency_key`). Repetir a chave devolve a operação original sem mover dinheiro; reutilizá-la em outra operação — ou usar a chave de outro usuário — retorna **409**, sem expor a operação original.
 
 **Limite de requisições:** login e cadastro, 10/min (por e-mail + IP); operações da carteira, 30/min (por usuário). Acima disso, **429** para clientes JSON; nos formulários, a página volta com a mensagem de erro.
 
@@ -162,6 +169,8 @@ erDiagram
                    bigint original_transaction_id UK
                    string idempotency_key UK
                    string reversal_reason
+                   string reversal_source "USER | COMPENSATION"
+                   string reversal_actor "user:id | operator:nome"
                    timestamp created_at
                    timestamp reversed_at }
 ```
@@ -174,7 +183,7 @@ erDiagram
 
 - **Sessão do Laravel:** `Auth::attempt()`, middleware `auth`, ID de sessão regenerado no login (contra *session fixation*) e invalidado no logout. Senhas com bcrypt.
 - **Cookies:** sessão criptografada (`SESSION_ENCRYPT=true`), `HttpOnly` e `SameSite=Lax`. Em produção com HTTPS, defina `SESSION_SECURE_COOKIE=true`.
-- **CSRF:** todo formulário de mutação envia `@csrf`, conferido pelo middleware do Laravel. Isso é necessário justamente porque a autenticação é por cookie.
+- **CSRF:** todo formulário de mutação envia `@csrf`, conferido pelo middleware do Laravel; um POST sem token recebe **419**. Isso é necessário justamente porque a autenticação é por cookie.
 - **Dados pessoais:** a lista de contatos mostra o CPF mascarado (`***.666.777-**`).
 - **Mass assignment:** os models declaram `$fillable`; saldos só mudam pelo `WalletService`.
 - **Autorização:** só o titular vê a própria carteira; estornar exige ser participante da operação.
@@ -240,12 +249,12 @@ Criados pelo seed (iguais aos do projeto Node). Senha de todos: `password123`.
 ## 11. Testes
 
 ```bash
-php artisan test                 # 53 testes: Unit, Feature e Concurrency
+php artisan test                 # 60 testes: Unit, Feature e Concurrency
 php vendor/bin/phpstan analyse   # nível 8, sem erros
 php vendor/bin/pint --test       # padrão de código
 ```
 
-Resultado da última execução: **53 testes, todos passando**. As suítes Unit e Feature usam SQLite em memória; a suíte Concurrency usa um arquivo temporário, porque só assim dois processos compartilham o banco.
+Resultado da última execução: **60 testes, todos passando**. As suítes Unit e Feature usam SQLite em memória; a suíte Concurrency usa um arquivo temporário, porque só assim dois processos compartilham o banco.
 
 `tests/Feature/ParityScenariosTest.php` reproduz os mesmos cenários do `parity.e2e-spec.ts` do projeto Node.
 
@@ -265,4 +274,5 @@ Resultado da última execução: **53 testes, todos passando**. As suítes Unit 
 - Não há gateway de pagamento, integração bancária nem webhooks: o dinheiro é apenas um saldo interno.
 - SQLite serializa todas as escritas; para volume real, MySQL ou PostgreSQL.
 - O limite de requisições usa o cache da aplicação (`CACHE_STORE=database`); com várias instâncias, o ideal seria Redis.
-- Não existe estorno administrativo (por inconsistência técnica) fora dos prazos do usuário; a proposta está em `docs/COMPARACAO_TECNICA.md`.
+- A compensação técnica não tem tela: é executada por linha de comando por quem tem acesso ao servidor. Não há papéis administrativos na aplicação.
+- A concorrência foi testada com dois processos na mesma máquina, não sob carga real com vários servidores.

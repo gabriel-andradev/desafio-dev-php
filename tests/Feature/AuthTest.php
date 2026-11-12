@@ -145,6 +145,20 @@ class AuthTest extends TestCase
     }
 
     /**
+     * HTML form clients over the limit go back to the form with a readable error instead of a bare 429 page.
+     */
+    public function test_login_form_over_the_limit_redirects_back_with_an_error(): void
+    {
+        for ($attempt = 0; $attempt < 10; $attempt++) {
+            $this->from('/login')->post('/login', ['email' => 'alvo@cobuccio.com', 'password' => 'senha-errada']);
+        }
+
+        $this->from('/login')->post('/login', ['email' => 'alvo@cobuccio.com', 'password' => 'senha-errada'])
+            ->assertRedirect('/login')
+            ->assertSessionHasErrors(['email' => 'Muitas tentativas de acesso. Aguarde um minuto e tente novamente.']);
+    }
+
+    /**
      * Verifies that invalid credentials return a generic message to prevent user enumeration.
      */
     public function test_login_rejects_invalid_credentials_with_generic_message(): void

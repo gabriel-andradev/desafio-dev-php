@@ -81,6 +81,21 @@ class ParityScenariosTest extends TestCase
         $this->actingAs($sender)->postJson("/wallet/transactions/{$lateId}/reverse")->assertStatus(422);
     }
 
+    public function test_another_users_idempotency_key_returns_409_without_exposing_the_transaction(): void
+    {
+        $alice = $this->userWithBalance('alice@test.com', 0);
+        $bob = $this->userWithBalance('bob@test.com', 0);
+
+        $this->actingAs($alice)->withHeader('X-Idempotency-Key', 'alice-key')
+            ->postJson('/wallet/deposit', ['amount_cents' => 5_000])->assertCreated();
+
+        $response = $this->actingAs($bob)->withHeader('X-Idempotency-Key', 'alice-key')
+            ->postJson('/wallet/deposit', ['amount_cents' => 5_000]);
+
+        $response->assertStatus(409)->assertJsonMissingPath('transaction');
+        $this->assertSame(0, Wallet::where('user_id', $bob->id)->value('balance_cents'));
+    }
+
     private function userWithBalance(string $email, int $balanceCents): User
     {
         $user = User::factory()->create(['email' => $email, 'cpf' => (string) $this->cpfCounter++]);
