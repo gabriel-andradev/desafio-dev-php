@@ -31,11 +31,12 @@ class DepositRequest extends FormRequest
         }
 
         if (! $this->has('amount_cents') && $this->filled('amount')) {
+            // Parse only: the min/max rules below then report the right message (e.g. above the ceiling).
             try {
-                $money = Money::fromBrlInput((string) $this->input('amount'));
-                $this->merge(['amount_cents' => $money->cents()]);
+                $this->merge(['amount_cents' => Money::parseBrlToCents((string) $this->input('amount'))]);
             } catch (DomainRuleException) {
-                $this->merge(['amount_cents' => 0]);
+                // Not a monetary value: let the "integer" rule report it as invalid.
+                $this->merge(['amount_cents' => 'invalid']);
             }
         }
     }
@@ -65,7 +66,7 @@ class DepositRequest extends FormRequest
             'amount_cents.required' => 'Informe o valor do depósito.',
             'amount_cents.integer' => 'O valor do depósito é inválido.',
             'amount_cents.min' => 'O valor do depósito deve ser maior que zero.',
-            'amount_cents.max' => 'O valor excede o limite permitido por operação.',
+            'amount_cents.max' => 'O valor excede o limite máximo permitido por operação.',
         ];
     }
 }

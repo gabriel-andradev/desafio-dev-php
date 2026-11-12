@@ -208,7 +208,8 @@
                 </span>
             </header>
 
-            @include('wallet.partials.flash')
+            {{-- Feedback only in the tab the request came from (same as the Node per-module alert). --}}
+            @includeWhen($activeTab === 'overview', 'wallet.partials.flash')
 
             <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div class="p-5 rounded-xl bg-brand-navy text-white border border-brand-gold/40 shadow-md space-y-2">
@@ -308,7 +309,8 @@
                 </p>
             </header>
 
-            @include('wallet.partials.flash')
+            {{-- Feedback only in the tab the request came from (same as the Node per-module alert). --}}
+            @includeWhen($activeTab === 'deposit', 'wallet.partials.flash')
 
             <form method="POST" action="{{ route('wallet.deposit') }}" class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
                 @csrf
@@ -411,7 +413,8 @@
                 </div>
             </header>
 
-            @include('wallet.partials.flash')
+            {{-- Feedback only in the tab the request came from (same as the Node per-module alert). --}}
+            @includeWhen($activeTab === 'transfer', 'wallet.partials.flash')
 
             <form method="POST" action="{{ route('wallet.transfer') }}" class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
                 @csrf
@@ -578,7 +581,8 @@
                 </div>
             </header>
 
-            @include('wallet.partials.flash')
+            {{-- Feedback only in the tab the request came from (same as the Node per-module alert). --}}
+            @includeWhen($activeTab === 'statement', 'wallet.partials.flash')
 
             <div class="bg-white rounded-xl border border-slate-200 shadow-sm divide-y divide-slate-100">
                 @forelse ($summary['transactions'] as $tx)

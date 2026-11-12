@@ -96,6 +96,38 @@ class ParityScenariosTest extends TestCase
         $this->assertSame(0, Wallet::where('user_id', $bob->id)->value('balance_cents'));
     }
 
+    public function test_amounts_typed_in_brl_above_the_ceiling_report_the_limit_not_zero(): void
+    {
+        $user = $this->userWithBalance('ceiling@test.com', 0);
+        $limitMessage = 'O valor excede o limite máximo permitido por operação.';
+
+        $this->actingAs($user)->postJson('/wallet/deposit', ['amount' => '555.555.555,55'])
+            ->assertStatus(422)->assertJsonPath('message', $limitMessage);
+        $this->actingAs($user)->postJson('/wallet/deposit', ['amount' => '1.000.000,01'])
+            ->assertStatus(422)->assertJsonPath('message', $limitMessage);
+        $this->actingAs($user)->postJson('/wallet/transfer', ['recipient' => 'x@test.com', 'amount' => '555.555.555,55'])
+            ->assertStatus(422)->assertJsonPath('message', $limitMessage);
+        $this->actingAs($user)->postJson('/wallet/deposit', ['amount' => 'abc'])
+            ->assertStatus(422)->assertJsonPath('message', 'O valor do depósito é inválido.');
+        $this->actingAs($user)->postJson('/wallet/deposit', ['amount' => '1.000.000,00'])
+            ->assertCreated();
+    }
+
+    public function test_form_error_feedback_is_shown_only_in_the_tab_it_came_from(): void
+    {
+        $user = $this->userWithBalance('feedback@test.com', 0);
+
+        $html = $this->actingAs($user)
+            ->followingRedirects()
+            ->from('/dashboard?tab=deposit')
+            ->post('/wallet/deposit', ['amount' => '555.555.555,55'])
+            ->assertOk()
+            ->getContent();
+
+        $this->assertSame(1, substr_count((string) $html, 'O valor excede o limite máximo permitido por operação.'));
+        $this->assertStringNotContainsString('deve ser maior que zero', (string) $html);
+    }
+
     private function userWithBalance(string $email, int $balanceCents): User
     {
         $user = User::factory()->create(['email' => $email, 'cpf' => (string) $this->cpfCounter++]);
