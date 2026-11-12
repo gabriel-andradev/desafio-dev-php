@@ -50,29 +50,6 @@ class WalletDomainTest extends TestCase
         $this->assertSame('-R$ 250,00', $negativeBalance->formatBrl());
     }
 
-    public function test_deposit_adds_to_positive_balance(): void
-    {
-        $newBalance = TransactionDomainRules::calculateBalanceAfterDeposit(
-            currentBalanceCents: 10000,
-            depositAmount: Money::fromCents(5000),
-        );
-
-        $this->assertSame(15000, $newBalance);
-    }
-
-    /**
-     * Verifies that depositing into an overdrawn wallet offsets the negative balance first.
-     */
-    public function test_deposit_offsets_negative_balance_and_adds_residual_amount(): void
-    {
-        $newBalance = TransactionDomainRules::calculateBalanceAfterDeposit(
-            currentBalanceCents: -25000,
-            depositAmount: Money::fromCents(40000),
-        );
-
-        $this->assertSame(15000, $newBalance);
-    }
-
     public function test_transfer_blocks_when_sender_has_insufficient_balance(): void
     {
         $this->expectException(DomainRuleException::class);

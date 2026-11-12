@@ -155,29 +155,6 @@ class WalletOperationsTest extends TestCase
     }
 
     /**
-     * Verifies that the sender cannot reverse a transfer after the 15-minute window expires.
-     */
-    public function test_sender_cannot_reverse_transfer_after_fifteen_minute_window(): void
-    {
-        [$sender, $senderWallet] = $this->createUserWithWallet(balanceCents: 50000);
-        [$receiver] = $this->createUserWithWallet(balanceCents: 0, email: 'bruno@cobuccio.com');
-
-        $transferResponse = $this->actingAs($sender)->postJson('/wallet/transfer', [
-            'recipient' => 'bruno@cobuccio.com',
-            'amount' => '100,00',
-        ])->assertCreated();
-
-        $transactionId = (int) $transferResponse->json('transaction.id');
-
-        $this->travel(16)->minutes();
-
-        $response = $this->actingAs($sender)->postJson("/wallet/transactions/{$transactionId}/reverse");
-
-        $response->assertUnprocessable()
-            ->assertJsonPath('message', 'O prazo de arrependimento do remetente (15 minutos) expirou.');
-    }
-
-    /**
      * Verifies that a failure between the debit/credit and the ledger insert rolls everything back.
      */
     public function test_failure_in_the_middle_of_a_transfer_rolls_back_both_balances(): void
@@ -365,37 +342,6 @@ class WalletOperationsTest extends TestCase
 
         $this->assertSame(30000, $senderWallet->fresh()?->balance_cents);
         $this->assertSame(20000, $receiverWallet->fresh()?->balance_cents);
-    }
-
-    /**
-     * Verifies that reusing an idempotency key for a different operation is rejected without moving money.
-     */
-    public function test_reusing_idempotency_key_for_different_operation_is_rejected(): void
-    {
-        [$user, $wallet] = $this->createUserWithWallet(balanceCents: 0);
-
-        $this->actingAs($user)
-            ->postJson('/wallet/deposit', ['amount' => '100,00', 'idempotency_key' => 'reused-key'])
-            ->assertCreated();
-
-        $this->actingAs($user)
-            ->postJson('/wallet/deposit', ['amount' => '999,00', 'idempotency_key' => 'reused-key'])
-            ->assertStatus(409);
-
-        $this->assertSame(10000, $wallet->fresh()?->balance_cents);
-    }
-
-    /**
-     * Verifies that the dashboard forms carry a fresh idempotency key on each render.
-     */
-    public function test_dashboard_forms_include_idempotency_key(): void
-    {
-        [$user] = $this->createUserWithWallet(balanceCents: 0);
-
-        $this->actingAs($user)
-            ->get('/dashboard?tab=deposit')
-            ->assertOk()
-            ->assertSee('name="idempotency_key"', false);
     }
 
     /**

@@ -129,11 +129,11 @@ PHP: `busy_timeout` de 5 s com transações `IMMEDIATE`. Node: o Prisma espera a
 | Unitários de domínio | PHPUnit (`tests/Unit`) | Jest (`*.spec.ts`) |
 | Integração | Feature tests com SQLite em memória | Supertest + SQLite dedicado (`test/e2e.db`) |
 | Paridade | `tests/Feature/ParityScenariosTest.php`, `AuthTest.php` e `WalletOperationsTest.php` | `test/parity.e2e-spec.ts` |
-| Concorrência | 2 processos PHP independentes sobre um arquivo SQLite | 2 processos Node independentes sobre um arquivo SQLite, além de requisições simultâneas na mesma API |
+| Concorrência | 2 processos PHP independentes sobre um arquivo SQLite | 2 processos Node independentes sobre um arquivo SQLite |
 | Rollback | Falha simulada ao gravar o lançamento | Falha simulada ao gravar o lançamento (no mesmo processo e num processo separado) |
 | Compensação | `tests/Feature/CompensationTest.php` | `test/compensation.e2e-spec.ts` (inclui execução real do script) |
 | Análise estática | PHPStan nível 8, Pint | `tsc --noEmit` |
-| **Total (última execução)** | **63 testes, todos passando** | **77 testes (37 unit + 25 e2e + 15 frontend), todos passando** |
+| **Total (última execução)** | **58 testes, todos passando** | **69 testes (31 unit + 23 e2e + 15 frontend), todos passando** |
 
 Cenários de paridade cobertos nos dois: duplicidade de e-mail/CPF, login inválido, depósito zero/negativo/acima do teto, autotransferência, destinatário inexistente, transferências simultâneas, idempotência simultânea, chave reutilizada ou de outro usuário, rollback, regras de estorno (403/422/409) e compensação técnica. O limite de requisições tem teste nos dois; a revogação do JWT no logout só existe (e só é testada) no Node.
 

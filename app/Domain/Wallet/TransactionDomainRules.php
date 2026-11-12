@@ -19,14 +19,6 @@ final class TransactionDomainRules
     public const DEPOSIT_REVERSAL_WINDOW_MINUTES = 1440;
 
     /**
-     * Calculates the new balance in cents after a deposit, automatically offsetting any negative balance.
-     */
-    public static function calculateBalanceAfterDeposit(int $currentBalanceCents, Money $depositAmount): int
-    {
-        return $currentBalanceCents + $depositAmount->cents();
-    }
-
-    /**
      * Validates that a peer-to-peer transfer satisfies balance and participant invariants.
      *
      * @throws DomainRuleException
