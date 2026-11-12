@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace App\Http\Requests;
 
+use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Http\Exceptions\HttpResponseException;
 
 /**
  * Validates and sanitizes incoming user registration payloads.
@@ -88,5 +90,24 @@ class RegisterRequest extends FormRequest
             'cpf' => $this->string('cpf')->toString(),
             'password' => $this->string('password')->toString(),
         ];
+    }
+
+    /**
+     * A duplicate e-mail/CPF is a conflict with existing data (409, as in the Node API), not a malformed field.
+     * Web forms keep Laravel's default redirect-back behaviour.
+     */
+    protected function failedValidation(Validator $validator): void
+    {
+        $onlyUniqueFailures = collect($validator->failed())
+            ->every(fn (array $rules): bool => array_keys($rules) === ['Unique']);
+
+        if ($this->expectsJson() && $onlyUniqueFailures) {
+            throw new HttpResponseException(response()->json([
+                'message' => $validator->errors()->first(),
+                'errors' => $validator->errors(),
+            ], 409));
+        }
+
+        parent::failedValidation($validator);
     }
 }

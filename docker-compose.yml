@@ -6,12 +6,15 @@ services:
     container_name: cobuccio-php-app
     restart: unless-stopped
     working_dir: /var/www/html
+    environment:
+      DB_CONNECTION: sqlite
+      # The database lives in a named volume: it survives container rebuilds and is not shared
+      # with a local `php artisan serve` run, which uses database/database.sqlite.
+      DB_DATABASE: /var/www/html/storage/database/database.sqlite
     volumes:
       - .:/var/www/html
+      - sqlite_data:/var/www/html/storage/database
       - ./docker/php/local.ini:/usr/local/etc/php/conf.d/local.ini:ro
-    depends_on:
-      db:
-        condition: service_healthy
     networks:
       - cobuccio-net
 
@@ -34,30 +37,9 @@ services:
     networks:
       - cobuccio-net
 
-  db:
-    image: mysql:8.0
-    container_name: cobuccio-php-db
-    restart: unless-stopped
-    environment:
-      MYSQL_DATABASE: ${DB_DATABASE:-cobuccio_wallet}
-      MYSQL_USER: ${DB_USERNAME:-cobuccio}
-      MYSQL_PASSWORD: ${DB_PASSWORD:-local_dev_pass}
-      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-root_local_dev}
-    ports:
-      - "${FORWARD_DB_PORT:-3307}:3306"
-    volumes:
-      - db_data:/var/lib/mysql
-    healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-p${DB_ROOT_PASSWORD:-root_local_dev}"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
-    networks:
-      - cobuccio-net
-
 networks:
   cobuccio-net:
     driver: bridge
 
 volumes:
-  db_data:
+  sqlite_data:

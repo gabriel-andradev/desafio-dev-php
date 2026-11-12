@@ -178,6 +178,36 @@ class WalletOperationsTest extends TestCase
     }
 
     /**
+     * Verifies that a failure between the debit/credit and the ledger insert rolls everything back.
+     */
+    public function test_failure_in_the_middle_of_a_transfer_rolls_back_both_balances(): void
+    {
+        [$sender, $senderWallet] = $this->createUserWithWallet(balanceCents: 50000);
+        [, $receiverWallet] = $this->createUserWithWallet(balanceCents: 1000, email: 'bruno@cobuccio.com');
+
+        // Balances are already updated when the ledger row is inserted: make that insert fail.
+        Transaction::creating(function (): never {
+            throw new \RuntimeException('Simulated failure while writing the ledger entry.');
+        });
+
+        $this->withoutExceptionHandling();
+
+        try {
+            $this->actingAs($sender)->postJson('/wallet/transfer', [
+                'recipient' => 'bruno@cobuccio.com',
+                'amount' => '100,00',
+            ]);
+            $this->fail('The simulated failure should have been thrown.');
+        } catch (\RuntimeException $exception) {
+            $this->assertSame('Simulated failure while writing the ledger entry.', $exception->getMessage());
+        }
+
+        $this->assertSame(50000, $senderWallet->fresh()?->balance_cents);
+        $this->assertSame(1000, $receiverWallet->fresh()?->balance_cents);
+        $this->assertSame(0, Transaction::count());
+    }
+
+    /**
      * Verifies that the statement offers "Estornar" inside the window and explains when the window has expired.
      */
     public function test_statement_shows_reverse_button_then_expired_label(): void
@@ -257,7 +287,7 @@ class WalletOperationsTest extends TestCase
         $secondAttempt = $this->actingAs($user)
             ->postJson("/wallet/transactions/{$depositId}/reverse");
 
-        $secondAttempt->assertUnprocessable()
+        $secondAttempt->assertStatus(409)
             ->assertJsonPath('message', 'Esta operação já foi revertida anteriormente.');
     }
 

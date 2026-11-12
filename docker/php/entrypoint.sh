@@ -24,7 +24,12 @@ mkdir -p /var/www/html/storage/framework/cache/data \
 
 chmod -R 777 /var/www/html/storage /var/www/html/bootstrap/cache 2>/dev/null || true
 
-echo "=> [Docker Bootstrap] Executando migrations e seeders no banco..."
+DB_FILE="${DB_DATABASE:-/var/www/html/database/database.sqlite}"
+mkdir -p "$(dirname "$DB_FILE")"
+[ -f "$DB_FILE" ] || touch "$DB_FILE"
+chmod -R 777 "$(dirname "$DB_FILE")" 2>/dev/null || true
+
+echo "=> [Docker Bootstrap] Executando migrations e seeders no banco SQLite ($DB_FILE)..."
 php artisan migrate --seed --force
 
 echo "=> [Docker Bootstrap] Inicializacao concluida com sucesso!"

@@ -75,9 +75,10 @@ class AuthController extends Controller
         $credentials = $request->credentials();
 
         if (! $this->authService->attemptLogin($credentials)) {
+            // Same message and status as the Node API: 401, without revealing whether the e-mail exists.
             throw ValidationException::withMessages([
-                'email' => 'Credenciais inválidas. Verifique seu e-mail e senha.',
-            ]);
+                'email' => 'E-mail ou senha inválidos.',
+            ])->status(401);
         }
 
         $request->session()->regenerate();

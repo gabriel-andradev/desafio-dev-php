@@ -111,14 +111,8 @@ class WalletService
                 return $replay;
             }
 
-            $newBalanceCents = TransactionDomainRules::calculateBalanceAfterDeposit(
-                currentBalanceCents: $wallet->balance_cents,
-                depositAmount: $depositMoney,
-            );
-
-            $wallet->update([
-                'balance_cents' => $newBalanceCents,
-            ]);
+            // Atomic `balance_cents = balance_cents + ?`: a negative balance is offset first by plain addition.
+            Wallet::whereKey($wallet->id)->increment('balance_cents', $depositMoney->cents());
 
             return Transaction::create([
                 'type' => TransactionType::DEPOSIT->value,
@@ -188,13 +182,18 @@ class WalletService
                 transferAmount: $transferMoney,
             );
 
-            $senderWallet->update([
-                'balance_cents' => $senderWallet->balance_cents - $transferMoney->cents(),
-            ]);
+            // The real double-spending guard: the balance check and the debit are one atomic UPDATE.
+            // lockForUpdate() above protects MySQL/PostgreSQL, but on SQLite it is a no-op; there the
+            // IMMEDIATE transaction (config/database.php) plus this conditional UPDATE keep it safe.
+            $debitedRows = Wallet::whereKey($senderWallet->id)
+                ->where('balance_cents', '>=', $transferMoney->cents())
+                ->decrement('balance_cents', $transferMoney->cents());
 
-            $receiverWallet->update([
-                'balance_cents' => $receiverWallet->balance_cents + $transferMoney->cents(),
-            ]);
+            if ($debitedRows === 0) {
+                throw new DomainRuleException('Saldo insuficiente para realizar a transferência.');
+            }
+
+            Wallet::whereKey($receiverWallet->id)->increment('balance_cents', $transferMoney->cents());
 
             return Transaction::create([
                 'type' => TransactionType::TRANSFER->value,
@@ -240,36 +239,35 @@ class WalletService
                 $originalTransaction->receiver_wallet_id,
             ])));
 
-            /** @var Collection<int, Wallet> $lockedWallets */
-            $lockedWallets = Wallet::whereIn('id', $walletIdsToLock)
+            // Row locks in ID order on MySQL/PostgreSQL; a no-op on SQLite (see transfer()).
+            Wallet::whereIn('id', $walletIdsToLock)
                 ->orderBy('id')
                 ->lockForUpdate()
-                ->get()
-                ->keyBy('id');
-
-            /** @var Wallet $receiverWallet */
-            $receiverWallet = $lockedWallets->get($originalTransaction->receiver_wallet_id);
-            $receiverWallet->update([
-                'balance_cents' => $receiverWallet->balance_cents - $originalTransaction->amount_cents,
-            ]);
-
-            if ($originalTransaction->type === TransactionType::TRANSFER->value && $originalTransaction->sender_wallet_id !== null) {
-                /** @var Wallet $senderWallet */
-                $senderWallet = $lockedWallets->get($originalTransaction->sender_wallet_id);
-                $senderWallet->update([
-                    'balance_cents' => $senderWallet->balance_cents + $originalTransaction->amount_cents,
-                ]);
-            }
+                ->get();
 
             $resolvedReason = trim((string) $reason) !== ''
                 ? trim((string) $reason)
                 : 'Solicitação de estorno pelo usuário';
 
-            $originalTransaction->update([
-                'status' => TransactionStatus::REVERSED->value,
-                'reversal_reason' => $resolvedReason,
-                'reversed_at' => now(),
-            ]);
+            // Conditional status change: if a concurrent request reversed it first, nothing is updated.
+            $reversedRows = Transaction::whereKey($originalTransaction->id)
+                ->where('status', TransactionStatus::COMPLETED->value)
+                ->update([
+                    'status' => TransactionStatus::REVERSED->value,
+                    'reversal_reason' => $resolvedReason,
+                    'reversed_at' => now(),
+                ]);
+
+            if ($reversedRows === 0) {
+                throw new DomainRuleException('Esta operação já foi revertida anteriormente.', 409);
+            }
+
+            // The receiver may already have spent the money: the debit is allowed to go negative (policy).
+            Wallet::whereKey($originalTransaction->receiver_wallet_id)->decrement('balance_cents', $originalTransaction->amount_cents);
+
+            if ($originalTransaction->type === TransactionType::TRANSFER->value && $originalTransaction->sender_wallet_id !== null) {
+                Wallet::whereKey($originalTransaction->sender_wallet_id)->increment('balance_cents', $originalTransaction->amount_cents);
+            }
 
             return Transaction::create([
                 'type' => TransactionType::REVERSAL->value,

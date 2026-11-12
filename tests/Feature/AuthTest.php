@@ -92,7 +92,7 @@ class AuthTest extends TestCase
             'password' => 'password123',
         ]);
 
-        $duplicateResponse->assertUnprocessable()
+        $duplicateResponse->assertStatus(409)
             ->assertJsonValidationErrors(['cpf']);
     }
 
@@ -135,7 +135,7 @@ class AuthTest extends TestCase
             $this->postJson('/login', [
                 'email' => 'alvo@cobuccio.com',
                 'password' => 'senha-errada',
-            ])->assertStatus(422);
+            ])->assertStatus(401);
         }
 
         $this->postJson('/login', [
@@ -159,8 +159,8 @@ class AuthTest extends TestCase
             'password' => 'wrong-password',
         ]);
 
-        $response->assertUnprocessable()
-            ->assertJsonValidationErrors(['email']);
+        $response->assertUnauthorized()
+            ->assertJsonPath('message', 'E-mail ou senha inválidos.');
 
         $this->assertGuest();
     }

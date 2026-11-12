@@ -11,6 +11,12 @@ use App\Domain\Wallet\Exceptions\DomainRuleException;
  */
 final readonly class Money
 {
+    /**
+     * Ceiling per operation: R$ 1.000.000,00. A conservative business decision of this implementation
+     * (not a requirement of the challenge), shared with the Node version.
+     */
+    public const MAX_OPERATION_CENTS = 100_000_000;
+
     private function __construct(
         private int $amountCents,
     ) {}
@@ -24,6 +30,10 @@ final readonly class Money
     {
         if ($cents <= 0) {
             throw new DomainRuleException('O valor da operação deve ser maior que zero.');
+        }
+
+        if ($cents > self::MAX_OPERATION_CENTS) {
+            throw new DomainRuleException('O valor excede o limite máximo permitido por operação.');
         }
 
         return new self($cents);

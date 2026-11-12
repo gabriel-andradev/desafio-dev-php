@@ -88,7 +88,7 @@ final class TransactionDomainRules
         ?DateTimeInterface $createdAt = null,
     ): void {
         if ($status === TransactionStatus::REVERSED->value) {
-            throw new DomainRuleException('Esta operação já foi revertida anteriormente.');
+            throw new DomainRuleException('Esta operação já foi revertida anteriormente.', 409);
         }
 
         if ($type === TransactionType::REVERSAL->value) {

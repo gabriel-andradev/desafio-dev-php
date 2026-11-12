@@ -25,13 +25,20 @@
             : $digits;
     };
 
+    // Contacts only need enough to recognise someone: full CPF never leaves the server (LGPD data minimisation).
+    $maskCpf = static function (?string $cpf): string {
+        $digits = (string) $cpf;
+
+        return strlen($digits) === 11 ? '***.'.substr($digits, 3, 3).'.'.substr($digits, 6, 3).'-**' : '***';
+    };
+
     // Money leaves the wallet whenever it is the sender (this also covers a deposit reversal, which is a debit).
     $isIncoming = static fn ($tx): bool => (int) $tx->sender_wallet_id !== $walletId;
 
     $recipientsForJs = $summary['recipients']->map(fn ($participant) => [
         'name' => $participant->name,
         'email' => $participant->email,
-        'cpf' => $formatCpf($participant->cpf),
+        'cpf' => $maskCpf($participant->cpf),
     ])->values();
 
     $navItems = [
@@ -88,7 +95,7 @@
             return this.transferCents > this.currentBalanceCents;
         },
         get selectedContact() {
-            return this.recipients.find((c) => c.email === this.recipientInput || c.cpf === this.recipientInput) || null;
+            return this.recipients.find((c) => c.email === this.recipientInput) || null;
         },
         get recipientHint() {
             const value = this.recipientInput;
@@ -493,7 +500,7 @@
                                             <div class="font-semibold text-slate-800">{{ $participant->name }}</div>
                                             <div class="text-slate-500">{{ $participant->email }}</div>
                                         </div>
-                                        <span class="font-mono text-slate-400">{{ $formatCpf($participant->cpf) }}</span>
+                                        <span class="font-mono text-slate-400">{{ $maskCpf($participant->cpf) }}</span>
                                     </button>
                                 @endforeach
                             </div>

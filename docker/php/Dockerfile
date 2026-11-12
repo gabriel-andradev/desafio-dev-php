@@ -9,7 +9,6 @@ RUN apk add --no-cache \
     oniguruma-dev \
     sqlite-dev \
     && docker-php-ext-install \
-    pdo_mysql \
     pdo_sqlite \
     bcmath \
     opcache \
