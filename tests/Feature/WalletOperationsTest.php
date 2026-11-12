@@ -418,6 +418,30 @@ class WalletOperationsTest extends TestCase
     }
 
     /**
+     * After a successful form deposit the amount field comes back empty (no accidental second deposit);
+     * after a failed one the typed value is kept so the user can correct it.
+     */
+    public function test_deposit_form_clears_the_amount_after_success_and_keeps_it_after_an_error(): void
+    {
+        [$user] = $this->createUserWithWallet(balanceCents: 0);
+
+        $this->actingAs($user)
+            ->followingRedirects()
+            ->from('/dashboard?tab=deposit')
+            ->post('/wallet/deposit', ['amount' => '50,00', 'idempotency_key' => 'form-key-1'])
+            ->assertOk()
+            ->assertSee('Depósito realizado com sucesso.')
+            ->assertSee("depositInput: ''", false);
+
+        $this->actingAs($user)
+            ->followingRedirects()
+            ->from('/dashboard?tab=deposit')
+            ->post('/wallet/deposit', ['amount' => '2.000.000,00', 'idempotency_key' => 'form-key-2'])
+            ->assertOk()
+            ->assertSee("depositInput: '2.000.000,00'", false);
+    }
+
+    /**
      * Helper to provision a user and an associated wallet for testing.
      *
      * @return array{0: User, 1: Wallet}
