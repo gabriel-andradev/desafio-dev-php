@@ -2,7 +2,7 @@
 
 Carteira financeira digital feita para o desafio técnico full stack do **Grupo Adriano Cobuccio**: cadastro, autenticação, depósitos, transferências entre usuários, extrato e estorno de operações.
 
-O mesmo produto também foi implementado em **Node.js (NestJS + Next.js)** (repositório `desafio-dev-next`). As regras de negócio, os limites e as contas de demonstração são os mesmos; a arquitetura de cada um segue o próprio framework. A comparação completa está em [`docs/COMPARACAO_TECNICA.md`](docs/COMPARACAO_TECNICA.md).
+O mesmo produto também foi implementado em **Node.js (NestJS + Next.js)** (repositório `desafio-dev-next`). Os dois projetos seguem o mesmo contrato funcional: regras financeiras, limites operacionais e contas de demonstração equivalentes. Cada um mantém a própria arquitetura, os próprios mecanismos técnicos e a própria infraestrutura. A comparação completa está em [`docs/COMPARACAO_TECNICA.md`](docs/COMPARACAO_TECNICA.md).
 
 **Diferenciais implementados:** valores em centavos inteiros, ledger imutável com estorno por contra-lançamento, idempotência de depósitos e transferências, proteção contra gasto duplo testada com processos PHP simultâneos, compensação interna auditável, limite de requisições e PHPStan nível 8.
 
@@ -24,7 +24,7 @@ O mesmo produto também foi implementado em **Node.js (NestJS + Next.js)** (repo
 
 ## 2. Regras de negócio
 
-> Estas regras são idênticas no projeto Node.
+> Regras e limites equivalentes aos do projeto Node.
 
 **Cadastro**
 - Nome: 3 a 100 caracteres. E-mail: normalizado (sem espaços, minúsculo). CPF: exatamente 11 dígitos, gravado sem máscara (não há validação de dígito verificador em nenhuma das versões).
@@ -52,7 +52,7 @@ O mesmo produto também foi implementado em **Node.js (NestJS + Next.js)** (repo
 
 Os prazos são uma política desta aplicação, não do enunciado.
 
-**Compensação por inconsistência técnica:** um estorno interno, sem as janelas de prazo do usuário, para corrigir erros técnicos (ex.: crédito duplicado encontrado numa conciliação). Não existe rota HTTP para isso: só o comando Artisan `wallet:compensate` (executado no servidor) chama a operação. Exige justificativa (mín. 10 caracteres) e responsável, grava `reversal_source = COMPENSATION` e `reversal_actor = operator:<nome>` no lançamento `REVERSAL`, e não compensa duas vezes a mesma operação.
+**Compensação por inconsistência técnica:** um estorno interno, sem as janelas de prazo do usuário, para corrigir erros técnicos (ex.: crédito duplicado encontrado numa conciliação). Não existe rota HTTP para isso: só o comando Artisan `wallet:compensate` (executado no servidor) chama a operação. Exige justificativa (mín. 10 caracteres) e responsável, grava `reversal_source = COMPENSATION` e `reversal_actor = operator:<nome>` no lançamento `REVERSAL`, e não compensa duas vezes a mesma operação. O responsável é um identificador declarado na linha de comando e registrado para auditoria; ele não é uma identidade administrativa autenticada pelo sistema.
 
 ```bash
 php artisan wallet:compensate <id> --reason="Crédito duplicado na conciliação" --operator=<responsável>
@@ -185,7 +185,8 @@ erDiagram
 - **Cookies:** sessão criptografada (`SESSION_ENCRYPT=true`), `HttpOnly` e `SameSite=Lax`. Em produção com HTTPS, defina `SESSION_SECURE_COOKIE=true`.
 - **CSRF:** todo formulário de mutação envia `@csrf`, conferido pelo middleware do Laravel; um POST sem token recebe **419**. Isso é necessário justamente porque a autenticação é por cookie.
 - **Dados pessoais:** a lista de contatos mostra o CPF mascarado (`***.666.777-**`).
-- **Mass assignment:** os models declaram `$fillable`; saldos só mudam pelo `WalletService`.
+- **Mass assignment:** os models declaram `$fillable` e os controllers só repassam os campos validados pelos Form Requests; nenhuma rota recebe saldo do cliente.
+- **Responsabilidades:** o middleware `auth` e o CSRF não substituem as regras de cada operação; o serviço continua validando dono da carteira, participante do estorno, saldo e prazos.
 - **Autorização:** só o titular vê a própria carteira; estornar exige ser participante da operação.
 
 ---
@@ -236,7 +237,9 @@ Acesse http://localhost:8000.
 
 ## 10. Usuários de demonstração
 
-Criados pelo seed (iguais aos do projeto Node). Senha de todos: `password123`.
+Criados pelo seed (equivalentes aos do projeto Node). Senha de todos: `password123`.
+
+> Credenciais exclusivas para testes locais e demonstração. Não use estas contas nem esta senha em produção.
 
 | Titular | E-mail | Saldo inicial | Cenário |
 | :--- | :--- | :--- | :--- |
@@ -256,7 +259,12 @@ php vendor/bin/pint --test       # padrão de código
 
 Resultado da última execução: **60 testes, todos passando**. As suítes Unit e Feature usam SQLite em memória; a suíte Concurrency usa um arquivo temporário, porque só assim dois processos compartilham o banco.
 
-`tests/Feature/ParityScenariosTest.php` reproduz os mesmos cenários do `parity.e2e-spec.ts` do projeto Node.
+| Arquivo | Cobre | Equivalente no Node |
+| :--- | :--- | :--- |
+| `tests/Feature/ParityScenariosTest.php` | Duplicidade, valores inválidos, autotransferência, destinatário inexistente, chave reutilizada ou de outro usuário, regras de estorno | `test/parity.e2e-spec.ts` |
+| `tests/Feature/AuthTest.php` e `WalletOperationsTest.php` | Login inválido, limite de requisições (JSON e formulário), idempotência, rollback | `test/parity.e2e-spec.ts` |
+| `tests/Concurrency/WalletConcurrencyTest.php` | Dois processos PHP independentes no mesmo arquivo SQLite | `test/concurrency/multi-process.e2e-spec.ts` |
+| `tests/Feature/CompensationTest.php` | Compensação técnica via Artisan | `test/compensation.e2e-spec.ts` |
 
 ---
 
@@ -264,15 +272,18 @@ Resultado da última execução: **60 testes, todos passando**. As suítes Unit 
 
 - **Sessão em vez de JWT:** num monólito Blade a sessão é o padrão do framework e permite encerrar o acesso na hora.
 - **Domínio sem Eloquent:** as regras financeiras são testadas sem banco.
-- **IMMEDIATE + `UPDATE` condicional:** a forma correta de serializar escritas no SQLite; o `lockForUpdate()` fica para bancos com lock por linha.
+- **IMMEDIATE + `UPDATE` condicional:** serializa as escritas no SQLite e garante que o débito só aconteça com saldo suficiente. O `lockForUpdate()` fica para bancos com lock por linha (MySQL/PostgreSQL), onde o comportamento de isolamento e de travas é diferente e precisaria ser validado de novo.
 - **Chave de idempotência no formulário:** cada carregamento da página gera um UUID; um duplo envio do mesmo formulário reaproveita a chave.
 
 ---
 
-## 13. Limitações conhecidas
+## 13. Escopo e limitações conhecidas
 
-- Não há gateway de pagamento, integração bancária nem webhooks: o dinheiro é apenas um saldo interno.
-- SQLite serializa todas as escritas; para volume real, MySQL ou PostgreSQL.
-- O limite de requisições usa o cache da aplicação (`CACHE_STORE=database`); com várias instâncias, o ideal seria Redis.
-- A compensação técnica não tem tela: é executada por linha de comando por quem tem acesso ao servidor. Não há papéis administrativos na aplicação.
-- A concorrência foi testada com dois processos na mesma máquina, não sob carga real com vários servidores.
+**Fora do escopo**
+- Gateway de pagamento, integração bancária e webhooks: o dinheiro é apenas um saldo interno.
+- Interface administrativa: a compensação técnica só existe via Artisan, para quem tem acesso ao servidor. O responsável informado é um identificador declarativo de auditoria, não um operador autenticado; não há gestão de operadores nem papéis administrativos.
+
+**Limitações técnicas**
+- O SQLite aceita um escritor por vez; para volume real, MySQL ou PostgreSQL, com nova validação da concorrência.
+- O limite de requisições usa o cache da aplicação no banco (`CACHE_STORE=database`): instâncias que usem o mesmo armazenamento compartilham os contadores, mas cada escrita disputa a mesma trava do SQLite; com várias instâncias, Redis seria mais adequado.
+- A concorrência foi testada com dois processos na mesma máquina; não houve teste de carga nem com vários servidores.
