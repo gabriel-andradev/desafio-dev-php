@@ -144,7 +144,6 @@ class WalletDomainTest extends TestCase
             createdAt: $createdAt,
         );
 
-        // Reaching this line means no DomainRuleException was thrown.
         $this->addToAssertionCount(1);
     }
 
@@ -176,7 +175,6 @@ class WalletDomainTest extends TestCase
             createdAt: $createdAt,
         );
 
-        // Reaching this line means no DomainRuleException was thrown.
         $this->addToAssertionCount(1);
     }
 
@@ -223,7 +221,6 @@ class WalletDomainTest extends TestCase
             createdAt: $createdAt,
         );
 
-        // Reaching this line means no DomainRuleException was thrown.
         $this->addToAssertionCount(1);
     }
 

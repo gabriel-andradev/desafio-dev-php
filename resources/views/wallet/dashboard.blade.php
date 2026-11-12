@@ -25,14 +25,14 @@
             : $digits;
     };
 
-    // Contacts only need enough to recognise someone: full CPF never leaves the server (LGPD data minimisation).
+    /** Contacts only need enough to recognise someone: the full CPF never leaves the server (LGPD data minimisation). */
     $maskCpf = static function (?string $cpf): string {
         $digits = (string) $cpf;
 
         return strlen($digits) === 11 ? '***.'.substr($digits, 3, 3).'.'.substr($digits, 6, 3).'-**' : '***';
     };
 
-    // Money leaves the wallet whenever it is the sender (this also covers a deposit reversal, which is a debit).
+    /** Money leaves the wallet whenever it is the sender (this also covers a deposit reversal, which is a debit). */
     $isIncoming = static fn ($tx): bool => (int) $tx->sender_wallet_id !== $walletId;
 
     $recipientsForJs = $summary['recipients']->map(fn ($participant) => [

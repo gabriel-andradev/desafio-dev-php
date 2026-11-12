@@ -156,7 +156,6 @@ class ParityScenariosTest extends TestCase
             ->assertCreated()->json('transaction.id');
         $this->actingAs($sender)->postJson("/wallet/transactions/{$id}/reverse")->assertOk();
 
-        // Must not reveal that the operation exists and was reversed.
         $this->actingAs($outsider)->postJson("/wallet/transactions/{$id}/reverse")->assertForbidden();
     }
 

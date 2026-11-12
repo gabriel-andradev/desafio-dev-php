@@ -70,6 +70,7 @@ final class TransactionDomainRules
 
     /**
      * Classifies a transaction for the statement: reversible now, reversible only if it were not too late, or never.
+     * The second check runs without a creation date, so it tells whether only the time window blocked it.
      */
     public static function reversalState(
         string $type,
@@ -84,7 +85,6 @@ final class TransactionDomainRules
 
             return ReversalState::AVAILABLE;
         } catch (DomainRuleException) {
-            // Fall through: check whether only the time window blocked it.
         }
 
         try {
@@ -98,6 +98,8 @@ final class TransactionDomainRules
 
     /**
      * Validates that a transaction is eligible for reversal by the requesting participant within allowed time windows.
+     * Permission is checked first, so someone outside the operation gets 403 without learning its state
+     * (reversed or not), in the same order as the Node version.
      *
      * @throws DomainRuleException
      */
@@ -109,8 +111,6 @@ final class TransactionDomainRules
         int $receiverWalletId,
         ?DateTimeInterface $createdAt = null,
     ): void {
-        // Permission first: someone outside the operation must get 403 without learning its state
-        // (reversed or not), the same order as the Node version.
         $isSender = $senderWalletId !== null && $actorWalletId === $senderWalletId;
         $isReceiver = $actorWalletId === $receiverWalletId;
 

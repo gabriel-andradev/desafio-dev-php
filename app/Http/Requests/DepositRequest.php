@@ -23,6 +23,8 @@ class DepositRequest extends FormRequest
 
     /**
      * Converts BRL formatted input into integer cents when amount_cents is not provided directly.
+     * The amount is only parsed here, so the min/max rules report the right message (e.g. above the
+     * ceiling); text that is not a monetary value is left for the "integer" rule to reject.
      */
     protected function prepareForValidation(): void
     {
@@ -31,11 +33,9 @@ class DepositRequest extends FormRequest
         }
 
         if (! $this->has('amount_cents') && $this->filled('amount')) {
-            // Parse only: the min/max rules below then report the right message (e.g. above the ceiling).
             try {
                 $this->merge(['amount_cents' => Money::parseBrlToCents((string) $this->input('amount'))]);
             } catch (DomainRuleException) {
-                // Not a monetary value: let the "integer" rule report it as invalid.
                 $this->merge(['amount_cents' => 'invalid']);
             }
         }
@@ -43,13 +43,13 @@ class DepositRequest extends FormRequest
 
     /**
      * Returns the validation rules that apply to the request.
+     * integer:strict rejects JSON booleans and numeric strings (true would otherwise become 1 cent).
      *
      * @return array<string, list<string>>
      */
     public function rules(): array
     {
         return [
-            // integer:strict: JSON booleans or numeric strings are not amounts (true would become 1 cent).
             'amount_cents' => ['required', 'integer:strict', 'min:1', 'max:'.Money::MAX_OPERATION_CENTS],
             'description' => ['nullable', 'string', 'max:140'],
             'idempotency_key' => ['nullable', 'string', 'max:100'],

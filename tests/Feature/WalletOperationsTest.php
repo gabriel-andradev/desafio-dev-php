@@ -162,7 +162,6 @@ class WalletOperationsTest extends TestCase
         [$sender, $senderWallet] = $this->createUserWithWallet(balanceCents: 50000);
         [, $receiverWallet] = $this->createUserWithWallet(balanceCents: 1000, email: 'bruno@cobuccio.com');
 
-        // Balances are already updated when the ledger row is inserted: make that insert fail.
         Transaction::creating(function (): never {
             throw new \RuntimeException('Simulated failure while writing the ledger entry.');
         });

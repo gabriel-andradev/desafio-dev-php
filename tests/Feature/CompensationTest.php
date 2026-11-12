@@ -28,7 +28,6 @@ class CompensationTest extends TestCase
         $id = $this->actingAs($sender)->postJson('/wallet/transfer', ['recipient' => 'b@test.com', 'amount_cents' => 3_000])
             ->assertCreated()->json('transaction.id');
 
-        // Two days later: far outside the 15 min / 24 h user windows.
         $this->travel(2)->days();
 
         $this->compensate([

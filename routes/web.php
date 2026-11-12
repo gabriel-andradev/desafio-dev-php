@@ -31,8 +31,9 @@ Route::middleware('auth')->group(function (): void {
     Route::middleware('throttle:wallet')->group(function (): void {
         Route::post('/wallet/deposit', [WalletController::class, 'deposit'])->name('wallet.deposit');
         Route::post('/wallet/transfer', [WalletController::class, 'transfer'])->name('wallet.transfer');
+        /** A non-numeric id is a 404 instead of a TypeError (500) in the controller. */
         Route::post('/wallet/transactions/{transaction}/reverse', [WalletController::class, 'reverse'])
-            ->whereNumber('transaction') // a non-numeric id is a 404, not a TypeError (500) in the controller
+            ->whereNumber('transaction')
             ->name('wallet.reverse');
     });
 });

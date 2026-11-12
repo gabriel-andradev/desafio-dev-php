@@ -60,7 +60,8 @@ final readonly class Money
     /**
      * Converts BRL text ("1.450,75", "R$ 10", "10.5") into integer cents using integer math only.
      * Only parses: it does not apply the operation limits, so callers can report "above the ceiling"
-     * instead of a generic error.
+     * instead of a generic error. Integer parts longer than 15 digits are rejected, which keeps the
+     * multiplication far from PHP_INT_MAX (such values are above the ceiling anyway).
      *
      * @throws DomainRuleException when the text is not a monetary value
      */
@@ -84,7 +85,6 @@ final readonly class Money
 
         $fractionPart = substr(str_pad($fractionPart, 2, '0'), 0, 2);
 
-        // 15 digits keeps the multiplication far from PHP_INT_MAX; anything that long is above the ceiling anyway.
         if (! ctype_digit($wholePart) || ! ctype_digit($fractionPart) || strlen($wholePart) > 15) {
             throw new DomainRuleException('Formato de valor monetário inválido.');
         }

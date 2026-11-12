@@ -6,6 +6,8 @@ declare(strict_types=1);
  * Worker used by WalletConcurrencyTest: each invocation is a separate PHP process (a real concurrent
  * client) running against the same SQLite file passed in DB_DATABASE.
  *
+ * Every worker waits for the same instant (startAtUnixFloat) so the operations really overlap.
+ *
  * Usage: php wallet_worker.php <setup|transfer|deposit|inspect> [startAtUnixFloat] [idempotencyKey]
  */
 
@@ -25,7 +27,6 @@ $mode = $argv[1] ?? '';
 $startAt = isset($argv[2]) ? (float) $argv[2] : 0.0;
 $idempotencyKey = $argv[3] ?? null;
 
-// Barrier: every worker waits for the same instant so the operations really overlap.
 while ($startAt > 0 && microtime(true) < $startAt) {
     usleep(500);
 }

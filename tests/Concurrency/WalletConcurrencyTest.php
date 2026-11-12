@@ -39,7 +39,6 @@ class WalletConcurrencyTest extends TestCase
 
     public function test_two_simultaneous_transfers_cannot_spend_the_same_balance(): void
     {
-        // Sender has R$ 100,00; two processes try to send R$ 80,00 at the same instant.
         $startAt = (string) (microtime(true) + 1.5);
         $results = $this->runWorkers([['transfer', $startAt], ['transfer', $startAt]]);
 

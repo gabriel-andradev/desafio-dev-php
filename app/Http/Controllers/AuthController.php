@@ -68,6 +68,8 @@ class AuthController extends Controller
 
     /**
      * Authenticates a user and regenerates the session identifier to prevent session fixation.
+     * Invalid credentials return 401 with a generic message (same as the Node API), without revealing
+     * whether the e-mail exists.
      *
      * @throws ValidationException
      */
@@ -76,7 +78,6 @@ class AuthController extends Controller
         $credentials = $request->credentials();
 
         if (! $this->authService->attemptLogin($credentials)) {
-            // Same message and status as the Node API: 401, without revealing whether the e-mail exists.
             throw ValidationException::withMessages([
                 'email' => 'E-mail ou senha inválidos.',
             ])->status(401);
@@ -104,6 +105,7 @@ class AuthController extends Controller
 
     /**
      * Terminates the authenticated session and rotates the CSRF token.
+     * JSON clients receive 204 No Content, the same status as the Node API.
      */
     public function logout(Request $request): RedirectResponse|Response
     {
@@ -113,7 +115,6 @@ class AuthController extends Controller
         $request->session()->regenerateToken();
 
         if ($request->expectsJson()) {
-            // 204, the same status as the Node API's logout.
             return response()->noContent();
         }
 

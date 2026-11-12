@@ -82,6 +82,8 @@ class WalletService
 
     /**
      * Credits a deposit into the user's wallet atomically, offsetting any existing negative balance.
+     * The balance changes with an atomic `balance_cents = balance_cents + ?`, so a negative balance is offset
+     * first by plain addition.
      * When an idempotency key is given, a retried request returns the original transaction instead of crediting twice.
      *
      * @throws DomainRuleException
@@ -112,7 +114,6 @@ class WalletService
                 return $replay;
             }
 
-            // Atomic `balance_cents = balance_cents + ?`: a negative balance is offset first by plain addition.
             Wallet::whereKey($wallet->id)->increment('balance_cents', $depositMoney->cents());
 
             return Transaction::create([
@@ -129,6 +130,9 @@ class WalletService
 
     /**
      * Executes an atomic peer-to-peer transfer using ordered pessimistic row locks to prevent deadlocks.
+     * The real double-spending guard is the conditional debit: the balance check and the debit are one
+     * atomic UPDATE. lockForUpdate() protects MySQL/PostgreSQL but is a no-op on SQLite, where the IMMEDIATE
+     * transaction (config/database.php) plus this conditional UPDATE keep the operation safe.
      * When an idempotency key is given, a retried request returns the original transaction instead of debiting twice.
      *
      * @throws DomainRuleException
@@ -183,9 +187,6 @@ class WalletService
                 transferAmount: $transferMoney,
             );
 
-            // The real double-spending guard: the balance check and the debit are one atomic UPDATE.
-            // lockForUpdate() above protects MySQL/PostgreSQL, but on SQLite it is a no-op; there the
-            // IMMEDIATE transaction (config/database.php) plus this conditional UPDATE keep it safe.
             $debitedRows = Wallet::whereKey($senderWallet->id)
                 ->where('balance_cents', '>=', $transferMoney->cents())
                 ->decrement('balance_cents', $transferMoney->cents());
@@ -277,6 +278,9 @@ class WalletService
 
     /**
      * Shared reversal core (user request or compensation). Must run inside DB::transaction().
+     * Wallets are row-locked in ID order on MySQL/PostgreSQL (a no-op on SQLite). The status changes
+     * conditionally, so if a concurrent request reversed it first nothing is updated. The receiver may
+     * already have spent the money, so the debit is allowed to leave a negative balance (policy).
      *
      * @throws DomainRuleException
      */
@@ -287,13 +291,11 @@ class WalletService
             $originalTransaction->receiver_wallet_id,
         ])));
 
-        // Row locks in ID order on MySQL/PostgreSQL; a no-op on SQLite (see transfer()).
         Wallet::whereIn('id', $walletIdsToLock)
             ->orderBy('id')
             ->lockForUpdate()
             ->get();
 
-        // Conditional status change: if a concurrent request reversed it first, nothing is updated.
         $reversedRows = Transaction::whereKey($originalTransaction->id)
             ->where('status', TransactionStatus::COMPLETED->value)
             ->update([
@@ -306,7 +308,6 @@ class WalletService
             throw new DomainRuleException('Esta operação já foi revertida anteriormente.', 409);
         }
 
-        // The receiver may already have spent the money: the debit is allowed to go negative (policy).
         Wallet::whereKey($originalTransaction->receiver_wallet_id)->decrement('balance_cents', $originalTransaction->amount_cents);
 
         if ($originalTransaction->type === TransactionType::TRANSFER->value && $originalTransaction->sender_wallet_id !== null) {
