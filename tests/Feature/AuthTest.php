@@ -122,7 +122,7 @@ class AuthTest extends TestCase
 
         $this->assertAuthenticatedAs($user);
 
-        $this->postJson('/logout')->assertOk();
+        $this->postJson('/logout')->assertNoContent();
         $this->assertGuest();
     }
 

@@ -109,14 +109,8 @@ final class TransactionDomainRules
         int $receiverWalletId,
         ?DateTimeInterface $createdAt = null,
     ): void {
-        if ($status === TransactionStatus::REVERSED->value) {
-            throw new DomainRuleException('Esta operação já foi revertida anteriormente.', 409);
-        }
-
-        if ($type === TransactionType::REVERSAL->value) {
-            throw new DomainRuleException('Contra-lançamentos de estorno não podem ser revertidos.');
-        }
-
+        // Permission first: someone outside the operation must get 403 without learning its state
+        // (reversed or not), the same order as the Node version.
         $isSender = $senderWalletId !== null && $actorWalletId === $senderWalletId;
         $isReceiver = $actorWalletId === $receiverWalletId;
 
@@ -126,6 +120,14 @@ final class TransactionDomainRules
 
         if (! $isSender && ! $isReceiver) {
             throw new DomainRuleException('Você não tem permissão para reverter esta transação.', 403);
+        }
+
+        if ($type === TransactionType::REVERSAL->value) {
+            throw new DomainRuleException('Contra-lançamentos de estorno não podem ser revertidos.');
+        }
+
+        if ($status === TransactionStatus::REVERSED->value) {
+            throw new DomainRuleException('Esta operação já foi revertida anteriormente.', 409);
         }
 
         if ($createdAt !== null) {

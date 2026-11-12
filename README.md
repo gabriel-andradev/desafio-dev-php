@@ -252,12 +252,12 @@ Criados pelo seed (equivalentes aos do projeto Node). Senha de todos: `password1
 ## 11. Testes
 
 ```bash
-php artisan test                 # 58 testes: Unit, Feature e Concurrency
+php artisan test                 # 61 testes: Unit, Feature e Concurrency
 php vendor/bin/phpstan analyse   # nível 8, sem erros
 php vendor/bin/pint --test       # padrão de código
 ```
 
-Resultado da última execução: **58 testes, todos passando**. As suítes Unit e Feature usam SQLite em memória; a suíte Concurrency usa um arquivo temporário, porque só assim dois processos compartilham o banco.
+Resultado da última execução: **61 testes, todos passando**. As suítes Unit e Feature usam SQLite em memória; a suíte Concurrency usa um arquivo temporário, porque só assim dois processos compartilham o banco.
 
 | Arquivo | Cobre | Equivalente no Node |
 | :--- | :--- | :--- |

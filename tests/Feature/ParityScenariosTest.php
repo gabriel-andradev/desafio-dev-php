@@ -128,6 +128,38 @@ class ParityScenariosTest extends TestCase
         $this->assertStringNotContainsString('deve ser maior que zero', (string) $html);
     }
 
+    public function test_rejects_non_integer_json_amounts_such_as_booleans_and_numeric_strings(): void
+    {
+        $user = $this->userWithBalance('types@test.com', 0);
+
+        foreach ([true, '100', 10.5, null] as $amount) {
+            $this->actingAs($user)->postJson('/wallet/deposit', ['amount_cents' => $amount])->assertStatus(422);
+        }
+
+        $this->assertSame(0, Wallet::where('user_id', $user->id)->value('balance_cents'));
+    }
+
+    public function test_reverse_with_a_non_numeric_id_is_404_not_500(): void
+    {
+        $user = $this->userWithBalance('badid@test.com', 0);
+
+        $this->actingAs($user)->postJson('/wallet/transactions/abc/reverse')->assertNotFound();
+    }
+
+    public function test_outsider_gets_403_even_for_an_already_reversed_transaction(): void
+    {
+        $sender = $this->userWithBalance('own-a@test.com', 10_000);
+        $this->userWithBalance('own-b@test.com', 0);
+        $outsider = $this->userWithBalance('own-c@test.com', 0);
+
+        $id = $this->actingAs($sender)->postJson('/wallet/transfer', ['recipient' => 'own-b@test.com', 'amount_cents' => 1_000])
+            ->assertCreated()->json('transaction.id');
+        $this->actingAs($sender)->postJson("/wallet/transactions/{$id}/reverse")->assertOk();
+
+        // Must not reveal that the operation exists and was reversed.
+        $this->actingAs($outsider)->postJson("/wallet/transactions/{$id}/reverse")->assertForbidden();
+    }
+
     private function userWithBalance(string $email, int $balanceCents): User
     {
         $user = User::factory()->create(['email' => $email, 'cpf' => (string) $this->cpfCounter++]);

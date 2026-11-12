@@ -12,6 +12,7 @@ use Illuminate\Contracts\View\View;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\ValidationException;
 
@@ -104,7 +105,7 @@ class AuthController extends Controller
     /**
      * Terminates the authenticated session and rotates the CSRF token.
      */
-    public function logout(Request $request): RedirectResponse|JsonResponse
+    public function logout(Request $request): RedirectResponse|Response
     {
         $this->authService->logout();
 
@@ -112,7 +113,8 @@ class AuthController extends Controller
         $request->session()->regenerateToken();
 
         if ($request->expectsJson()) {
-            return response()->json(['message' => 'Sessão encerrada com sucesso.']);
+            // 204, the same status as the Node API's logout.
+            return response()->noContent();
         }
 
         return redirect()->route('login');

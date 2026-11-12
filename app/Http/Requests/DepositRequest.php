@@ -49,7 +49,8 @@ class DepositRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'amount_cents' => ['required', 'integer', 'min:1', 'max:'.Money::MAX_OPERATION_CENTS],
+            // integer:strict: JSON booleans or numeric strings are not amounts (true would become 1 cent).
+            'amount_cents' => ['required', 'integer:strict', 'min:1', 'max:'.Money::MAX_OPERATION_CENTS],
             'description' => ['nullable', 'string', 'max:140'],
             'idempotency_key' => ['nullable', 'string', 'max:100'],
         ];

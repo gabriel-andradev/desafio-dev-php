@@ -29,7 +29,8 @@ O contrato de negócio é o mesmo; a arquitetura de cada um segue o próprio fra
 | CSRF | Token `@csrf` em todo formulário | Server Actions + verificação de origem do Next.js + `SameSite=Lax`; a API só aceita Bearer | Ver seção 5 |
 | Transação | `DB::transaction()` | `prisma.$transaction()` interativa | — |
 | Gasto duplo | `BEGIN IMMEDIATE` + `UPDATE` condicional (`lockForUpdate()` para MySQL/PostgreSQL) | `UPDATE` condicional (`updateMany ... gte`) | Ver seção 4 |
-| Rate limit | `RateLimiter` + middleware `throttle` | `@nestjs/throttler` | — |
+| Rate limit | `RateLimiter` + middleware `throttle` (por usuário / e-mail + IP) | `@nestjs/throttler` com `AppThrottlerGuard` (por usuário / e-mail + IP) | No Node todas as chamadas chegam pelo BFF, então a contagem por IP puro seria global |
+| Campos extras no payload | Ignorados (só os campos validados chegam ao serviço) | Rejeitados com 422 (`forbidNonWhitelisted`) | Convenção de cada framework; nos dois o saldo nunca vem do cliente |
 | IDs | Inteiros autoincrementais | UUID | Padrão de cada ORM; a autorização não depende de o ID ser imprevisível |
 
 ---
@@ -133,7 +134,7 @@ PHP: `busy_timeout` de 5 s com transações `IMMEDIATE`. Node: o Prisma espera a
 | Rollback | Falha simulada ao gravar o lançamento | Falha simulada ao gravar o lançamento (no mesmo processo e num processo separado) |
 | Compensação | `tests/Feature/CompensationTest.php` | `test/compensation.e2e-spec.ts` (inclui execução real do script) |
 | Análise estática | PHPStan nível 8, Pint | `tsc --noEmit` |
-| **Total (última execução)** | **58 testes, todos passando** | **69 testes (31 unit + 23 e2e + 15 frontend), todos passando** |
+| **Total (última execução)** | **61 testes, todos passando** | **72 testes (31 unit + 26 e2e + 15 frontend), todos passando** |
 
 Cenários de paridade cobertos nos dois: duplicidade de e-mail/CPF, login inválido, depósito zero/negativo/acima do teto, autotransferência, destinatário inexistente, transferências simultâneas, idempotência simultânea, chave reutilizada ou de outro usuário, rollback, regras de estorno (403/422/409) e compensação técnica. O limite de requisições tem teste nos dois; a revogação do JWT no logout só existe (e só é testada) no Node.
 
